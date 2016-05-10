@@ -2,9 +2,21 @@ var AWS = require('aws-sdk');
 
 
 exports.handle = function(e, ctx) {
- 
-  ctx.succeed({ hello: 'world' });
+  var s3 = new AWS.S3();
 
-  console.log('processing event: %j', e);
+
+  var params = {
+    Bucket: 'assets.rdocumentation.org', 
+    EncodingType: 'url'
+  };
+
+  s3.listObjects(params, function(err, data) {
+    if (err) {
+      ctx.fail(err);
+    }
+    else {
+      ctx.succeed(data);
+    }
+  });
   
 };
