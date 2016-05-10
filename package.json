@@ -1,0 +1,18 @@
+{
+  "name": "rdocumentation-workers",
+  "version": "0.2.0",
+  "description": "rdocumentation packages scrappers",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "DataCamp",
+  "license": "ISC",
+  "devDependencies": {
+    "grunt": "^1.0.1",
+    "grunt-aws-lambda": "^0.12.0"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.3.9"
+  }
+}

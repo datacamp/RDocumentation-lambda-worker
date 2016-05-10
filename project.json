@@ -1,0 +1,11 @@
+
+{
+  "name": "Rdocumentation-workers",
+  "description": "Rdocumentation packages scrappers",
+  "memory": 128,
+  "timeout": 5,
+  "runtime": "nodejs",
+  "role": "lambda",
+	"defaultEnvironment": "dev",
+  "environment": {}
+}
