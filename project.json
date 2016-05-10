@@ -5,7 +5,7 @@
   "memory": 128,
   "timeout": 5,
   "runtime": "nodejs",
-  "role": "lambda",
-	"defaultEnvironment": "dev",
+  "role": "arn:aws:iam::352211034136:role/aws-lambda",
+  "defaultEnvironment": "dev",
   "environment": {}
 }
