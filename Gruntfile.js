@@ -4,24 +4,11 @@ module.exports = function(grunt) {
     lambda_invoke: {
       default: {
         options: {
-          file_name: 'functions/upload-packages/index.js',
-          event: 'functions/upload-packages/event.json'
+          file_name: 'functions/unzip/src/index.js',
+          event: 'functions/unzip/src/event.json'
         },
       },
-    },
-    lambda_package: {
-      default: {
-        options: {
-          include_files: ['.env', './app/**'],
-        },
-      },
-    },
-    lambda_deploy: {
-      default: {
-        arn: process.env.DEPLOY_ARN,
-        options: {},
-      },
-    },
+    }
   });
 
   grunt.registerTask('check', ['jscs']);

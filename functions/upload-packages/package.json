@@ -1,0 +1,10 @@
+{
+  "name": "upload-packages-lambda-function",
+  "version": "0.2.0",
+  "main": "index.js",
+  "author": "DataCamp",
+  "dependencies": {
+    "aws-sdk": "^2.3.9",
+    "jsftp": "^1.5.3"
+  }
+}

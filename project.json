@@ -3,9 +3,11 @@
   "name": "Rdocumentation-workers",
   "description": "Rdocumentation packages scrappers",
   "memory": 128,
-  "timeout": 5,
-  "runtime": "nodejs4.3",
+  "timeout": 300,
+  "runtime": "nodejs",
   "role": "arn:aws:iam::352211034136:role/aws-lambda",
-  "defaultEnvironment": "dev",
-  "environment": {}
+  "environment": {},
+  "hooks": {
+    "build": "npm install"
+  }
 }

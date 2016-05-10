@@ -1,0 +1,9 @@
+{
+  "name": "unzip-lambda-function",
+  "version": "0.2.0",
+  "main": "index.js",
+  "author": "DataCamp",
+  "dependencies": {
+    "aws-sdk": "^2.3.9"
+  }
+}
