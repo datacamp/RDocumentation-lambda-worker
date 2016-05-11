@@ -4,6 +4,8 @@
   "main": "index.js",
   "author": "DataCamp",
   "dependencies": {
-    "aws-sdk": "^2.3.9"
+    "aws-sdk": "^2.3.9",
+    "tar.gz": "^1.0.3",
+    "through": "^2.3.8"
   }
 }

@@ -8,6 +8,6 @@
   "role": "arn:aws:iam::352211034136:role/aws-lambda",
   "environment": {},
   "hooks": {
-    "build": "npm install"
+    "build": "npm install --only=prod"
   }
 }

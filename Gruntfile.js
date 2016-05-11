@@ -4,8 +4,9 @@ module.exports = function(grunt) {
     lambda_invoke: {
       default: {
         options: {
-          file_name: 'functions/unzip/src/index.js',
-          event: 'functions/unzip/src/event.json'
+          handler: 'handle',
+          file_name: 'functions/unzip/index.js',
+          event: 'functions/unzip/test_event.json'
         },
       },
     }

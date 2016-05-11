@@ -11,9 +11,5 @@
   "devDependencies": {
     "grunt": "^1.0.1",
     "grunt-aws-lambda": "^0.12.0"
-  },
-  "dependencies": {
-    "aws-sdk": "^2.3.9",
-    "jsftp": "^1.5.3"
   }
 }
