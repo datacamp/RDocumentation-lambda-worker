@@ -8,14 +8,13 @@ var downloadPackageVersion = function(ftp, ftppath, file, cb) {
   var uploadStream = through();
   var filename = ftppath + '/' + file;
   ftp.get(filename, function(err, socket) {
-    console.log('--------------');
     socket.on('data', function(data) {
-      console.log(data);
       uploadStream.emit('data', data);
     });
     socket.on('close', function(err) {
       uploadStream.emit('end');
-      cb(err);
+      console.info('Donwloaded: ' + filename);
+      cb(err, uploadStream);
     });
     socket.resume();
   });
@@ -33,34 +32,42 @@ var uploadPackage = function(s3, packageName, filename, stream, size, cb) {
 
 var downloadAndUploadAllPackageVersions = function(ftp, s3, packageName, currentVersion) {
   var archiveDirectory = '/pub/R/src/contrib/Archive/';
+  var currentVersionDirectory = '/pub/R/src/contrib';
   var packageArchiveDirectory = archiveDirectory + packageName;
 
   sync.fiber(function() {
+
+    /* Donwload and upload current version */
+    var currentVersionFilename = packageName + '_' + currentVersion + '.tar.gz';
+    try {
+      var filesize = sync.await(ftp.raw.size(currentVersionDirectory + '/' + currentVersionFilename, sync.defer())).text;
+      var parsedSize = filesize.split(' ')[1]; // we get size in this format '213 filesize';
+      var uploadStream = downloadPackageVersion(ftp, currentVersionDirectory, currentVersionFilename, sync.defer());
+      uploadPackage(s3, packageName, currentVersionFilename, uploadStream, parsedSize, function(err, res) {
+        if (err) console.warn(err);
+        else console.info('Uploaded: ' + currentVersionFilename);
+      });
+      sync.await();
+    } catch (err) {
+      console.warn(err);
+    }
+
     /* Download and upload Archives */
     ftp.ls(packageArchiveDirectory, function(err, res) {
-      console.log(res);
-      
-      res.forEach(function(file) {
-        var uploadStream = downloadPackageVersion(ftp, packageArchiveDirectory, file.name, sync.defer());
-        uploadPackage(s3, packageName, file.name, uploadStream, file.size, function(err, res) {
-          console.log(res);
+      sync.fiber(function() {
+        res.forEach(function(file) {
+          var uploadStream = downloadPackageVersion(ftp, packageArchiveDirectory, file.name, sync.defer());
+          uploadPackage(s3, packageName, file.name, uploadStream, file.size, function(err, res) {
+            if (err) console.warn(err);
+            else console.info('Uploaded: ' + file.name);
+          });
+          sync.await();
         });
-        sync.await();
       });
       
     });
 
-    /* Donwload and upload current version */
-    var currentVersionFilename = packageName + '_' + currentVersion + '.tar.gz';
-    var uploadStream = downloadPackageVersion(ftp, '/pub/R/src/contrib', currentVersionFilename, sync.defer());
-    uploadPackage(s3, packageName, currentVersionFilename, uploadStream, file.size, function(err, res) {
-      console.log(res);
-    });
-    sync.await();
   });
-
- 
-
 
 };
 
@@ -78,6 +85,6 @@ exports.handle = function(e, ctx) {
 
   var packageToGet = 'A3';
 
-  downloadAndUploadAllPackageVersions(ftp, s3, packageToGet, '1.0');
+  downloadAndUploadAllPackageVersions(ftp, s3, packageToGet, '1.0.0');
   
 };
