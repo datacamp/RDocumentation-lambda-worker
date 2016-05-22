@@ -3,19 +3,21 @@ var JSFtp = require('jsftp');
 var sync = require('synchronize');
 var Promise = require('bluebird');
 
-var downloadPackageVersion = function(ftp, ftppath, file, cb) {
-  var filename = ftppath + '/' + file;
+var downloadPackageVersion = function(ftp, ftppath, cb) {
   var buffer = [];
-  ftp.get(filename, function(err, socket) {
-    socket.on('data', function(data) {
-      buffer.push(data);
-    });
-    socket.on('close', function(err) {
-      var b = Buffer.concat(buffer);
-      console.info('Donwloaded: ' + filename);
-      cb(err, b);
-    });
-    socket.resume();
+  ftp.get(ftppath, function(err, socket) {
+    if(err !== null) cb(err);
+    else {
+      socket.on('data', function(data) {
+        buffer.push(data);
+      });
+      socket.on('close', function(err) {
+        var b = Buffer.concat(buffer);
+        console.info('Donwloaded: ' + ftppath);
+        cb(err, b);
+      });
+      socket.resume();
+    }
   });
 };
 
@@ -27,44 +29,27 @@ var uploadPackage = function(s3, path, stream, cb) {
   }, cb);
 };
 
-var downloadAllPackageVersions = function(ftp, s3, packageName, currentVersion, callback) {
+
+var listArchivedVersions = function(ftp, packageName, callback) {
+ /* Download and upload Archives */
   var archiveDirectory = '/pub/R/src/contrib/Archive/';
-  var currentVersionDirectory = '/pub/R/src/contrib';
   var packageArchiveDirectory = archiveDirectory + packageName;
 
-  sync.fiber(function() {
-    var versionArray = [];
-    /* Donwload and upload current version */
-    var currentVersionFilename = packageName + '_' + currentVersion + '.tar.gz';
-    try {
-      var version =  sync.await(downloadPackageVersion(ftp, currentVersionDirectory, currentVersionFilename, sync.defer()));
-      versionArray.push({
-        path: packageName + '/' + currentVersionFilename,
-        buffer: version
-      });
-    } catch (err) {
-      console.warn(err);
+
+  ftp.ls(packageArchiveDirectory, function(err, res) {
+    if (err !== null) callback(err);
+    else {
+      callback(null, res.map(function(file) {
+        var packageInfo = extractPackageInfo(file.name);
+        return {
+          name: packageInfo.name,
+          version: packageInfo.version,
+          packageVersion: packageInfo.name + '_' +  packageInfo.version,
+          fullFTPPath: packageArchiveDirectory + '/' + file.name
+        };
+      }));
     }
-
-    /* Download and upload Archives */
-    ftp.ls(packageArchiveDirectory, function(err, res) {
-      if (err !== null) callback(err);
-      else {
-        sync.fiber(function() {
-          res.forEach(function(file) {
-            var version = sync.await(downloadPackageVersion(ftp, packageArchiveDirectory, file.name, sync.defer()));
-            versionArray.push({
-              path: packageName + '/' + file.name,
-              buffer: version
-            });
-          });
-          callback(null, versionArray);
-        });
-      }
-    });
-
   });
-
 };
 
 var listAllPackages = function(ftp, dir, callback) {
@@ -79,18 +64,31 @@ var extractPackageInfo = function(filename) {
   var matches = filename.match(/(.*)_(.*)\.tar\.gz$/);
   return {
     name: matches[1],
-    currentVersion: matches[2]
+    version: matches[2]
   };
 };
 
+var checkInDynamoDB = function(dynDB, packageVersion, cb) {
+  var params = {
+    TableName: 'rdoc-packages',
+    Key: {
+        PackageVersion : {S: packageVersion.version },
+        PackageName : {S: packageVersion.name }
+    }
+  };
+
+  dynDB.getItem(params, cb);
+};
+
 var syncDynamoDB = function(dynDB, version, callback) {
-  var packageVersion = version.split('/')[1];
+  var packageVersion = extractPackageInfo(version.split('/')[1]);
   var params = {
     TableName: 'rdoc-packages',
     Item: {
-        PackageVersion: {S: packageVersion},
         SyncedTimestamp: {N: '' + new Date().getTime()},
-        ParsedTimestamp: {N: '0'}
+        ParsedTimestamp: {N: '0'},
+        PackageVersion : {S: packageVersion.version },
+        PackageName : {S: packageVersion.name }
     }
   };
   dynDB.putItem(params, callback);
@@ -101,25 +99,51 @@ exports.handle = function(e, ctx) {
   var ftp = new JSFtp({
     host: 'cran.r-project.org'
   });
-  var dynamodb = new AWS.DynamoDB({region: 'us-east-1'});
+  var dynamodb = new AWS.DynamoDB({region: 'eu-west-1'});
   var directory = '/pub/R/src/contrib/';
 
 
   sync.fiber(function() {
     var packageList = sync.await(listAllPackages(ftp, directory, sync.defer()));
     var packageInfos = packageList.map(extractPackageInfo);
-    Promise.map(packageInfos, function(packageInfo) {
-
-      return Promise.promisify(downloadAllPackageVersions)(ftp, s3, packageInfo.name, packageInfo.currentVersion)
-        .map(function(version) {
-          return Promise.promisify(uploadPackage)(s3, version.path, version.buffer)
+    Promise.each(packageInfos, function(packageInfo) {
+      return Promise.promisify(listArchivedVersions)(ftp, packageInfo.name)
+        .then(function(archivedVersions) { //list package version
+          archivedVersions.push({ //add current version
+            name: packageInfo.name,
+            version: packageInfo.version,
+            packageVersion: packageInfo.name + '_' +  packageInfo.version,
+            fullFTPPath: directory + packageInfo.name + '_' +  packageInfo.version + '.tar.gz'
+          });
+          return archivedVersions;
+        })
+        .filter(function(packageVersion) {
+          return Promise.promisify(checkInDynamoDB)(dynamodb, packageVersion)
+            .then(function (res) {
+              return Object.keys(res).length === 0;
+            });
+        })
+        .map(function(versionInfo) { //Download 
+          return Promise.promisify(downloadPackageVersion)(ftp, versionInfo.fullFTPPath)
+            .then(function(buffer) {
+              return {
+                S3Path: versionInfo.name + '/' + versionInfo.name + '_' + versionInfo.version + '.tar.gz',
+                buffer: buffer
+              };
+            });
+        }, {concurrency: 1})
+        .map(function(version) { //Upload
+          return Promise.promisify(uploadPackage)(s3, version.S3Path, version.buffer)
             .then(function() {
-               console.info('Uploaded: ' + version.path);
-               return version.path;
+               console.info('Uploaded: ' + version.S3Path);
+               return version.S3Path;
             })
             .then(function(versionPath) {
-              console.info('Synced dyndb: ' + version.path);
-              return Promise.promisify(syncDynamoDB)(dynamodb, versionPath);
+              return Promise.promisify(syncDynamoDB)(dynamodb, versionPath)
+                .then(function(v) {
+                  console.info('Synced dyndb: ' + version.S3Path);
+                  return v;
+                });
             })
             .catch(function(err) {
               console.warn(err);
@@ -134,7 +158,5 @@ exports.handle = function(e, ctx) {
       ctx.fail(err);
     });
   });
-
- // downloadAndUploadAllPackageVersions(ftp, s3, packageToGet, '1.0.0');
   
 };
