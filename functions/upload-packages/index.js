@@ -1,4 +1,4 @@
-var AWS = require('aws-sdk'); 
+  var AWS = require('aws-sdk'); 
 var _ = require('lodash');
 var JSFtp = require('jsftp');
 var sync = require('synchronize');
@@ -24,13 +24,13 @@ var downloadPackageVersion = function(ftp, ftppath, file, cb) {
 var uploadPackage = function(s3, packageName, filename, stream, size, cb) {
   s3.putObject({
     Bucket: 'assets.rdocumentation.org', 
-    Key: 'rpackages/archived-test/' + packageName + '/' + filename,
+    Key: 'rpackages/archived/' + packageName + '/' + filename,
     Body: stream,
     ContentLength: size
   }, cb);
 };
 
-var downloadAndUploadAllPackageVersions = function(ftp, s3, packageName, currentVersion) {
+var downloadAndUploadAllPackageVersions = function(ftp, s3, packageName, currentVersion, callback) {
   var archiveDirectory = '/pub/R/src/contrib/Archive/';
   var currentVersionDirectory = '/pub/R/src/contrib';
   var packageArchiveDirectory = archiveDirectory + packageName;
@@ -54,21 +54,41 @@ var downloadAndUploadAllPackageVersions = function(ftp, s3, packageName, current
 
     /* Download and upload Archives */
     ftp.ls(packageArchiveDirectory, function(err, res) {
-      sync.fiber(function() {
-        res.forEach(function(file) {
-          var uploadStream = downloadPackageVersion(ftp, packageArchiveDirectory, file.name, sync.defer());
-          uploadPackage(s3, packageName, file.name, uploadStream, file.size, function(err, res) {
-            if (err) console.warn(err);
-            else console.info('Uploaded: ' + file.name);
+      if (err !== null) callback(err);
+      else {
+        sync.fiber(function() {
+          res.forEach(function(file) {
+            var uploadStream = downloadPackageVersion(ftp, packageArchiveDirectory, file.name, sync.defer());
+            uploadPackage(s3, packageName, file.name, uploadStream, file.size, function(err, res) {
+              if (err) console.warn(err);
+              else console.info('Uploaded: ' + file.name);
+            });
+            sync.await();
           });
-          sync.await();
+          
         });
-      });
-      
+      }
     });
 
   });
 
+};
+
+var listAllPackages = function(ftp, dir, callback) {
+  /* Download and upload Archives */
+  ftp.ls(dir, function(err, res) {
+    callback(err, res.map(function(file) {return file.name; }).filter(function(filename) {
+      return /.*\.tar\.gz$/.test(filename);
+    }));
+  });
+};
+
+var extractPackageInfo = function(filename) {
+  var matches = filename.match(/(.*)_(.*)\.tar\.gz$/);
+  return {
+    name: matches[1],
+    currentVersion: matches[2]
+  };
 };
 
 exports.handle = function(e, ctx) {
@@ -85,6 +105,16 @@ exports.handle = function(e, ctx) {
 
   var packageToGet = 'A3';
 
-  downloadAndUploadAllPackageVersions(ftp, s3, packageToGet, '1.0.0');
+  sync.fiber(function() {
+    var packageList = sync.await(listAllPackages(ftp, directory, sync.defer()));
+    var packageInfos = packageList.map(extractPackageInfo);
+    console.log(packageInfos.slice(0,1));
+    packageInfos.slice(0,1).forEach(function(packageInfo) {
+      var result = sync.await(downloadAndUploadAllPackageVersions(ftp, s3, packageInfo.name, packageInfo.currentVersion, sync.defer()));
+      console.log(result);
+    });
+  });
+
+ // downloadAndUploadAllPackageVersions(ftp, s3, packageToGet, '1.0.0');
   
 };
