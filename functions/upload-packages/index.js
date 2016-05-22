@@ -1,53 +1,47 @@
-  var AWS = require('aws-sdk'); 
-var _ = require('lodash');
+var AWS = require('aws-sdk'); 
 var JSFtp = require('jsftp');
 var sync = require('synchronize');
-var through = require('through');
+var Promise = require('bluebird');
 
 var downloadPackageVersion = function(ftp, ftppath, file, cb) {
-  var uploadStream = through();
   var filename = ftppath + '/' + file;
+  var buffer = [];
   ftp.get(filename, function(err, socket) {
     socket.on('data', function(data) {
-      uploadStream.emit('data', data);
+      buffer.push(data);
     });
     socket.on('close', function(err) {
-      uploadStream.emit('end');
+      var b = Buffer.concat(buffer);
       console.info('Donwloaded: ' + filename);
-      cb(err, uploadStream);
+      cb(err, b);
     });
     socket.resume();
   });
-  return uploadStream;
 };
 
-var uploadPackage = function(s3, packageName, filename, stream, size, cb) {
+var uploadPackage = function(s3, path, stream, cb) {
   s3.putObject({
     Bucket: 'assets.rdocumentation.org', 
-    Key: 'rpackages/archived/' + packageName + '/' + filename,
-    Body: stream,
-    ContentLength: size
+    Key: 'rpackages/archived/' + path,
+    Body: stream
   }, cb);
 };
 
-var downloadAndUploadAllPackageVersions = function(ftp, s3, packageName, currentVersion, callback) {
+var downloadAllPackageVersions = function(ftp, s3, packageName, currentVersion, callback) {
   var archiveDirectory = '/pub/R/src/contrib/Archive/';
   var currentVersionDirectory = '/pub/R/src/contrib';
   var packageArchiveDirectory = archiveDirectory + packageName;
 
   sync.fiber(function() {
-
+    var versionArray = [];
     /* Donwload and upload current version */
     var currentVersionFilename = packageName + '_' + currentVersion + '.tar.gz';
     try {
-      var filesize = sync.await(ftp.raw.size(currentVersionDirectory + '/' + currentVersionFilename, sync.defer())).text;
-      var parsedSize = filesize.split(' ')[1]; // we get size in this format '213 filesize';
-      var uploadStream = downloadPackageVersion(ftp, currentVersionDirectory, currentVersionFilename, sync.defer());
-      uploadPackage(s3, packageName, currentVersionFilename, uploadStream, parsedSize, function(err, res) {
-        if (err) console.warn(err);
-        else console.info('Uploaded: ' + currentVersionFilename);
+      var version =  sync.await(downloadPackageVersion(ftp, currentVersionDirectory, currentVersionFilename, sync.defer()));
+      versionArray.push({
+        path: packageName + '/' + currentVersionFilename,
+        buffer: version
       });
-      sync.await();
     } catch (err) {
       console.warn(err);
     }
@@ -58,14 +52,13 @@ var downloadAndUploadAllPackageVersions = function(ftp, s3, packageName, current
       else {
         sync.fiber(function() {
           res.forEach(function(file) {
-            var uploadStream = downloadPackageVersion(ftp, packageArchiveDirectory, file.name, sync.defer());
-            uploadPackage(s3, packageName, file.name, uploadStream, file.size, function(err, res) {
-              if (err) console.warn(err);
-              else console.info('Uploaded: ' + file.name);
+            var version = sync.await(downloadPackageVersion(ftp, packageArchiveDirectory, file.name, sync.defer()));
+            versionArray.push({
+              path: packageName + '/' + file.name,
+              buffer: version
             });
-            sync.await();
           });
-          
+          callback(null, versionArray);
         });
       }
     });
@@ -75,7 +68,6 @@ var downloadAndUploadAllPackageVersions = function(ftp, s3, packageName, current
 };
 
 var listAllPackages = function(ftp, dir, callback) {
-  /* Download and upload Archives */
   ftp.ls(dir, function(err, res) {
     callback(err, res.map(function(file) {return file.name; }).filter(function(filename) {
       return /.*\.tar\.gz$/.test(filename);
@@ -91,27 +83,55 @@ var extractPackageInfo = function(filename) {
   };
 };
 
+var syncDynamoDB = function(dynDB, version, callback) {
+  var packageVersion = version.split('/')[1];
+  var params = {
+    TableName: 'rdoc-packages',
+    Item: {
+        PackageVersion: {S: packageVersion},
+        SyncedTimestamp: {N: '' + new Date().getTime()},
+        ParsedTimestamp: {N: '0'}
+    }
+  };
+  dynDB.putItem(params, callback);
+};
+
 exports.handle = function(e, ctx) {
   var s3 = new AWS.S3();
   var ftp = new JSFtp({
     host: 'cran.r-project.org'
   });
+  var dynamodb = new AWS.DynamoDB({region: 'us-east-1'});
   var directory = '/pub/R/src/contrib/';
 
-  var params = {
-    Bucket: 'assets.rdocumentation.org', 
-    EncodingType: 'url'
-  };
-
-  var packageToGet = 'A3';
 
   sync.fiber(function() {
     var packageList = sync.await(listAllPackages(ftp, directory, sync.defer()));
     var packageInfos = packageList.map(extractPackageInfo);
-    console.log(packageInfos.slice(0,1));
-    packageInfos.slice(0,1).forEach(function(packageInfo) {
-      var result = sync.await(downloadAndUploadAllPackageVersions(ftp, s3, packageInfo.name, packageInfo.currentVersion, sync.defer()));
-      console.log(result);
+    Promise.map(packageInfos, function(packageInfo) {
+
+      return Promise.promisify(downloadAllPackageVersions)(ftp, s3, packageInfo.name, packageInfo.currentVersion)
+        .map(function(version) {
+          return Promise.promisify(uploadPackage)(s3, version.path, version.buffer)
+            .then(function() {
+               console.info('Uploaded: ' + version.path);
+               return version.path;
+            })
+            .then(function(versionPath) {
+              console.info('Synced dyndb: ' + version.path);
+              return Promise.promisify(syncDynamoDB)(dynamodb, versionPath);
+            })
+            .catch(function(err) {
+              console.warn(err);
+            });
+        });
+
+    })
+    .then(function() {
+      ctx.succeed();
+    })
+    .catch(function(err) {
+      ctx.fail(err);
     });
   });
 
