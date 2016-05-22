@@ -56,6 +56,7 @@ exports.handle = function(e, ctx) {
   var bucketName = e.Records[0].s3.bucket.name;
   var objectKey = e.Records[0].s3.object.key;
   var version = extractVersion(objectKey);
+  console.info("Version being extracted: " + version);
   var dirPath = 'rpackages/unarchived';
 
   var req = s3.getObject({
@@ -74,8 +75,10 @@ exports.handle = function(e, ctx) {
   unzippedStream.on('entry', function(file) {
     if (file.type === 'File') {
       if (/\.Rd$/.test(file.path)) {
+        console.info('Found Rd file: ' + file.path);
         rdFileStream.emit('data', file);
       } else if (/DESCRIPTION$/.test(file.path)) {
+        console.info('Found DESC file: ' + file.path);
         descFileStream.emit('data', file);  
       }
     }
@@ -89,13 +92,20 @@ exports.handle = function(e, ctx) {
   var rdFileToJsonToS3Stream = es.map(function (data, callback) {
     var p = new RDocParser();
     var path = computeJSONPath(data.path, dirPath, version);
-    data
-      .pipe(p)
-      .pipe(es.wait(function(err, body) {
-        uploadData(s3, bucketName, path, body, function(err, data) {
-          callback(err, path);
-        });
-      }));
+    try { 
+      data
+        .pipe(p).on('error', function(e){
+          console.warn('Failed during: ' + data.path + ' parsing');
+          ctx.fail(e);
+        })
+        .pipe(es.wait(function(err, body) {
+          uploadData(s3, bucketName, path, body, function(err, data) {
+            callback(err, path);
+          });
+        }));
+    } catch (err) {
+      ctx.fail(err);
+    }
   });
 
   descFileStream.pipe(descFileParserUploaderPipe(s3, bucketName, dirPath, version));
@@ -105,7 +115,10 @@ exports.handle = function(e, ctx) {
       console.info('Uploaded to: ' + data);
     })
     .on('error', function(err) {
-      console.error(err);
+      ctx.fail(err);
+    })
+    .on('end', function() {
+      ctx.succeed();
     });
 };
 
