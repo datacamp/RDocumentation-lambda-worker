@@ -24,9 +24,29 @@ var computeJSONPath = function(rdPath, destDir, version) {
   return [destDir, packageName, version, filePath].join('/');
 };
 
-var extractVersion = function(objectKey) {
-  var matches = objectKey.match(/_(.*).tar.gz/);    
-  return matches[1];
+var extractPackageInfo = function(filename) {
+  var matches = filename.match(/(.*)\/(.*)_(.*)\.tar\.gz$/);
+  return {
+    name: matches[2],
+    version: matches[3]
+  };
+};
+
+var syncDynamoDB = function(dynDB, packageInfo, value, callback) {
+  var params = {
+    TableName: 'rdoc-packages',
+    Key: {
+        PackageVersion : {S: packageInfo.version },
+        PackageName : {S: packageInfo.name }
+    },
+    AttributeUpdates: {
+      ParsedTimestamp: {
+        Action: 'PUT',
+        Value: {N: value}
+      }
+    }
+  };
+  dynDB.updateItem(params, callback);
 };
 
 var descFileParserUploaderPipe = function(s3, bucketName, destDir, version) {
@@ -55,9 +75,11 @@ exports.handle = function(e, ctx) {
   var s3 = new AWS.S3();
   var bucketName = e.Records[0].s3.bucket.name;
   var objectKey = e.Records[0].s3.object.key;
-  var version = extractVersion(objectKey);
-  console.info("Version being extracted: " + version);
+  var packageInfo = extractPackageInfo(objectKey);
+  var version = packageInfo.version;
+  console.info('Version being extracted: ' + version);
   var dirPath = 'rpackages/unarchived';
+  var dynamodb = new AWS.DynamoDB({region: 'eu-west-1'});
 
   var req = s3.getObject({
     Bucket: bucketName, 
@@ -115,10 +137,22 @@ exports.handle = function(e, ctx) {
       console.info('Uploaded to: ' + data);
     })
     .on('error', function(err) {
-      ctx.fail(err);
+      syncDynamoDB(dynamodb, packageInfo, '-1', function(err, res) {
+        if (err !== null) {
+          console.warn('failed to update dynamodb');
+        }
+        ctx.fail(err);
+      });
     })
     .on('end', function() {
-      ctx.succeed();
+      syncDynamoDB(dynamodb, packageInfo, '' + new Date().getTime(), function(err, res) {
+        if (err !== null) {
+          console.warn('failed to update dynamodb');
+          ctx.fail(err);
+        } else {
+          ctx.succeed();
+        }
+      });
     });
 };
 
