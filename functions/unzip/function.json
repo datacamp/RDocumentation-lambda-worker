@@ -1,5 +1,5 @@
 {
   "description": "Unzip and Parse files in a cran packages",
-  "timeout": 300,
+  "timeout": 180,
   "memory": 1024
 }
