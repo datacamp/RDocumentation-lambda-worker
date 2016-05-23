@@ -1,6 +1,5 @@
 var AWS = require('aws-sdk'); 
 var JSFtp = require('jsftp');
-var sync = require('synchronize');
 var Promise = require('bluebird');
 
 var downloadPackageVersion = function(ftp, ftppath, cb) {
@@ -34,7 +33,7 @@ var listArchivedVersions = function(ftp, packageName, callback) {
  /* Download and upload Archives */
   var archiveDirectory = '/pub/R/src/contrib/Archive/';
   var packageArchiveDirectory = archiveDirectory + packageName;
-
+  console.info('Listing version of ' + packageName);
 
   ftp.ls(packageArchiveDirectory, function(err, res) {
     if (err !== null) callback(err);
@@ -53,6 +52,7 @@ var listArchivedVersions = function(ftp, packageName, callback) {
 };
 
 var listAllPackages = function(ftp, dir, callback) {
+  console.info('Fetching package list');
   ftp.ls(dir, function(err, res) {
     callback(err, res.map(function(file) {return file.name; }).filter(function(filename) {
       return /.*\.tar\.gz$/.test(filename);
@@ -102,11 +102,12 @@ exports.handle = function(e, ctx) {
   var dynamodb = new AWS.DynamoDB({region: 'eu-west-1'});
   var directory = '/pub/R/src/contrib/';
 
-
-  sync.fiber(function() {
-    var packageList = sync.await(listAllPackages(ftp, directory, sync.defer()));
-    var packageInfos = packageList.map(extractPackageInfo);
-    Promise.each(packageInfos, function(packageInfo) {
+  Promise.promisify(listAllPackages)(ftp, directory)
+    .then(function(packageList) {
+      return packageList.map(extractPackageInfo);
+    })
+    .each(function(packageInfo) {
+      console.info('Processing '  + packageInfo.name);
       return Promise.promisify(listArchivedVersions)(ftp, packageInfo.name)
         .then(function(archivedVersions) { //list package version
           archivedVersions.push({ //add current version
@@ -144,19 +145,23 @@ exports.handle = function(e, ctx) {
                   console.info('Synced dyndb: ' + version.S3Path);
                   return v;
                 });
-            })
-            .catch(function(err) {
-              console.warn(err);
             });
+        })
+        .timeout(120 * 1000) //timeout of 2 minutes for processing a complete package
+        .catch(Promise.TimeoutError, function(e) {
+          console.warn('Package ' + packageInfo.name + 'timed out');
+          return e;
+        })
+        .catch(function(err) {
+          console.warn(err);
+          return err;
         });
-
     })
-    .then(function() {
+    .then(function(val) {
       ctx.succeed();
     })
     .catch(function(err) {
       ctx.fail(err);
     });
-  });
   
 };

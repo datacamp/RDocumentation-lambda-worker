@@ -1,5 +1,5 @@
 {
   "description": "Upload CRAN package to S3",
   "timeout": 300,
-  "memory": 128
+  "memory": 512
 }

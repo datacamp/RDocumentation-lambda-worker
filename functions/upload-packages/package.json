@@ -5,8 +5,7 @@
   "author": "DataCamp",
   "dependencies": {
     "aws-sdk": "^2.3.9",
-    "bluebird": "^3.4.0",
     "jsftp": "^1.5.3",
-    "synchronize": "^0.9.15"
+    "bluebird": "^3.4.0"
   }
 }
