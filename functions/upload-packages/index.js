@@ -101,10 +101,18 @@ exports.handle = function(e, ctx) {
   });
   var dynamodb = new AWS.DynamoDB({region: 'eu-west-1'});
   var directory = '/pub/R/src/contrib/';
+  var offset = e.offset;
 
   Promise.promisify(listAllPackages)(ftp, directory)
     .then(function(packageList) {
-      return packageList.map(extractPackageInfo);
+      var packageInfos = packageList.map(extractPackageInfo);
+      if (offset) {
+        var id = packageInfos.findIndex(function(info) {
+          return info.name ===offset;
+        });
+        return packageInfos.slice(id);
+      } 
+      else return packageInfos;
     })
     .each(function(packageInfo) {
       console.info('Processing '  + packageInfo.name);
