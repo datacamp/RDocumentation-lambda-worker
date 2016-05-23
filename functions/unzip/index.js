@@ -117,15 +117,24 @@ exports.handle = function(e, ctx) {
     try { 
       data
         .pipe(p).on('error', function(e){
-          console.warn('Failed during: ' + data.path + ' parsing');
-          ctx.fail(e);
+          console.log('Failed during: ' + data.path + ' parsing');
+          syncDynamoDB(dynamodb, packageInfo, '-1', function(err, res) {
+            if (err !== null) {
+              console.warn('failed to update dynamodb');
+            }
+            ctx.fail(err);
+          });
         })
         .pipe(es.wait(function(err, body) {
           uploadData(s3, bucketName, path, body, function(err, data) {
+            if (err !== null) {
+              console.log('failed to upload to s3 ' + err);
+            }
             callback(err, path);
           });
         }));
     } catch (err) {
+      console.log('Stream error ' + err);
       ctx.fail(err);
     }
   });
@@ -137,9 +146,10 @@ exports.handle = function(e, ctx) {
       console.info('Uploaded to: ' + data);
     })
     .on('error', function(err) {
+      console.log('Pipe error ' + err);
       syncDynamoDB(dynamodb, packageInfo, '-1', function(err, res) {
         if (err !== null) {
-          console.warn('failed to update dynamodb');
+          console.log('failed to update dynamodb');
         }
         ctx.fail(err);
       });
@@ -147,7 +157,7 @@ exports.handle = function(e, ctx) {
     .on('end', function() {
       syncDynamoDB(dynamodb, packageInfo, '' + new Date().getTime(), function(err, res) {
         if (err !== null) {
-          console.warn('failed to update dynamodb');
+          console.log('failed to update dynamodb');
           ctx.fail(err);
         } else {
           ctx.succeed();
