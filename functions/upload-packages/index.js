@@ -68,6 +68,23 @@ var extractPackageInfo = function(filename) {
   };
 };
 
+var fetchJSONFile = function(s3, bucket, key, cb) {
+  var params = {
+    Bucket: bucket, /* required */
+    Key: key, /* required */
+  };
+  s3.getObject(params, cb);
+};
+
+var uploadJSONFile = function(s3, key, data, cb) {
+  s3.putObject({
+    Bucket: 'assets.rdocumentation.org', 
+    Key: key,
+    Body: data
+  }, cb);
+};
+
+
 var checkInDynamoDB = function(dynDB, packageVersion, cb) {
   var params = {
     TableName: 'rdoc-packages',
@@ -100,48 +117,27 @@ exports.handle = function(e, ctx) {
     host: 'cran.r-project.org'
   });
   var dynamodb = new AWS.DynamoDB({region: 'eu-west-1'});
-  var directory = '/pub/R/src/contrib/';
-  var offset = e.offset;
+  var bucketName = e.Records[0].s3.bucket.name;
+  var objectKey = e.Records[0].s3.object.key;
 
-  Promise.promisify(listAllPackages)(ftp, directory)
-    .then(function(packageList) {
-      var packageInfos = packageList.map(extractPackageInfo);
-      if (offset) {
-        var id = packageInfos.findIndex(function(info) {
-          return info.name ===offset;
-        });
-        return packageInfos.slice(id);
-      } 
-      else return packageInfos;
+  var packagesToBeDone = [];
+
+  Promise.promisify(fetchJSONFile)(s3, bucketName, objectKey)
+    .then(function(jsonFile) {
+      packagesToBeDone = JSON.parse(jsonFile.Body);
+      return packagesToBeDone;
     })
     .each(function(packageInfo) {
       console.info('Processing '  + packageInfo.name);
-      return Promise.promisify(listArchivedVersions)(ftp, packageInfo.name)
-        .then(function(archivedVersions) { //list package version
-          archivedVersions.push({ //add current version
-            name: packageInfo.name,
-            version: packageInfo.version,
-            packageVersion: packageInfo.name + '_' +  packageInfo.version,
-            fullFTPPath: directory + packageInfo.name + '_' +  packageInfo.version + '.tar.gz'
-          });
-          return archivedVersions;
+     
+      return Promise.promisify(downloadPackageVersion)(ftp, packageInfo.fullFTPPath)
+        .then(function(buffer) {
+          return {
+            S3Path: packageInfo.name + '/' + packageInfo.name + '_' + packageInfo.version + '.tar.gz',
+            buffer: buffer
+          };
         })
-        .filter(function(packageVersion) {
-          return Promise.promisify(checkInDynamoDB)(dynamodb, packageVersion)
-            .then(function (res) {
-              return Object.keys(res).length === 0;
-            });
-        })
-        .map(function(versionInfo) { //Download 
-          return Promise.promisify(downloadPackageVersion)(ftp, versionInfo.fullFTPPath)
-            .then(function(buffer) {
-              return {
-                S3Path: versionInfo.name + '/' + versionInfo.name + '_' + versionInfo.version + '.tar.gz',
-                buffer: buffer
-              };
-            });
-        }, {concurrency: 1})
-        .map(function(version) { //Upload
+        .then(function(version) { //Upload
           return Promise.promisify(uploadPackage)(s3, version.S3Path, version.buffer)
             .then(function() {
                console.info('Uploaded: ' + version.S3Path);
@@ -155,15 +151,18 @@ exports.handle = function(e, ctx) {
                 });
             });
         })
-        .timeout(120 * 1000) //timeout of 2 minutes for processing a complete package
-        .catch(Promise.TimeoutError, function(e) {
-          console.warn('Package ' + packageInfo.name + 'timed out');
-          return e;
-        })
         .catch(function(err) {
           console.warn(err);
-          return err;
+          throw err;
+        })
+        .finally(function() {
+          packagesToBeDone = packagesToBeDone.slice(1);
+          return packagesToBeDone;
         });
+    })
+    .timeout(290 * 1000)
+    .catch(Promise.TimeoutError, function(e) {
+      return Promise.promisify(uploadJSONFile)(s3, objectKey, JSON.stringify(packagesToBeDone));
     })
     .then(function(val) {
       ctx.succeed();
