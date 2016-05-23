@@ -1,0 +1,5 @@
+{
+  "description": "Index all CRAN Packages",
+  "timeout": 300,
+  "memory": 512
+}
