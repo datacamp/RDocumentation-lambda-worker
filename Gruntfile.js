@@ -5,8 +5,8 @@ module.exports = function(grunt) {
       default: {
         options: {
           handler: 'handle',
-          file_name: 'functions/upload-packages/index.js',
-          event: 'functions/upload-packages/test_event.json'
+          file_name: 'functions/unzip/index.js',
+          event: 'functions/unzip/test_event.json'
         },
       },
     }

@@ -111,7 +111,12 @@ var parsePackageVersion = function(s3, dynamodb, bucketName, objectKey, cb) {
       }
     }
 
-  }).on('finish', function() {
+  })
+  .on('error', function(err){
+    console.log('invalid archive for ' + packageInfo.name);
+    rdFileStream.emit('end');
+  })
+  .on('finish', function() {
     rdFileStream.emit('finish');
   }).on('end', function() {
     rdFileStream.emit('end');
@@ -128,7 +133,7 @@ var parsePackageVersion = function(s3, dynamodb, bucketName, objectKey, cb) {
             if (err !== null) {
               console.warn('failed to update dynamodb');
             }
-            cb(err);
+            cb('failed during parsing of' + data.path);
           });
         })
         .pipe(es.wait(function(err, body) {
@@ -195,7 +200,7 @@ exports.handle = function(e, ctx) {
             console.warn('failed');
             return { status: 'failed', reason: err};
           });
-      }, {concurrency : 5})
+      }, {concurrency : 10 })
       .then(function(result) {
         console.info(result);
         ctx.succeed();
