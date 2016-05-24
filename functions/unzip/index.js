@@ -195,7 +195,7 @@ exports.handle = function(e, ctx) {
             console.warn('failed');
             return { status: 'failed', reason: err};
           });
-      })
+      }, {concurrency : 5})
       .then(function(result) {
         console.info(result);
         ctx.succeed();
