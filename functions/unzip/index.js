@@ -2,6 +2,7 @@ var AWS = require('aws-sdk');
 var fs = require('fs');
 var targz = require('tar.gz');
 var es = require('event-stream');
+var Promise = require("bluebird");
 var RDocParser = require('rd-to-json-parser');
 var controlParser = require('debian-control-parser');
 
@@ -30,6 +31,14 @@ var extractPackageInfo = function(filename) {
     name: matches[2],
     version: matches[3]
   };
+};
+
+var fetchJSONFile = function(s3, bucket, key, cb) {
+  var params = {
+    Bucket: bucket, /* required */
+    Key: key, /* required */
+  };
+  s3.getObject(params, cb);
 };
 
 var syncDynamoDB = function(dynDB, packageInfo, value, callback) {
@@ -71,15 +80,11 @@ var descFileParserUploaderPipe = function(s3, bucketName, destDir, version) {
   });
 };
 
-exports.handle = function(e, ctx) {
-  var s3 = new AWS.S3();
-  var bucketName = e.Records[0].s3.bucket.name;
-  var objectKey = e.Records[0].s3.object.key;
+var parsePackageVersion = function(s3, dynamodb, bucketName, objectKey, cb) {
   var packageInfo = extractPackageInfo(objectKey);
   var version = packageInfo.version;
-  console.info('Version being extracted: ' + version);
+  console.info('Version being extracted: ' + packageInfo.name + ' ' + version);
   var dirPath = 'rpackages/unarchived';
-  var dynamodb = new AWS.DynamoDB({region: 'eu-west-1'});
 
   var req = s3.getObject({
     Bucket: bucketName, 
@@ -96,7 +101,8 @@ exports.handle = function(e, ctx) {
 
   unzippedStream.on('entry', function(file) {
     if (file.type === 'File') {
-      if (/\.Rd$/.test(file.path)) {
+      var path = file.path.split('/');
+      if (/\.Rd$/.test(file.path) && path[1] === 'man') {
         console.info('Found Rd file: ' + file.path);
         rdFileStream.emit('data', file);
       } else if (/DESCRIPTION$/.test(file.path)) {
@@ -122,7 +128,7 @@ exports.handle = function(e, ctx) {
             if (err !== null) {
               console.warn('failed to update dynamodb');
             }
-            ctx.fail(err);
+            cb(err);
           });
         })
         .pipe(es.wait(function(err, body) {
@@ -135,7 +141,7 @@ exports.handle = function(e, ctx) {
         }));
     } catch (err) {
       console.log('Stream error ' + err);
-      ctx.fail(err);
+      cb(err);
     }
   });
 
@@ -151,18 +157,60 @@ exports.handle = function(e, ctx) {
         if (err !== null) {
           console.log('failed to update dynamodb');
         }
-        ctx.fail(err);
+        cb(err);
       });
     })
     .on('end', function() {
       syncDynamoDB(dynamodb, packageInfo, '' + new Date().getTime(), function(err, res) {
         if (err !== null) {
           console.log('failed to update dynamodb');
-          ctx.fail(err);
+          cb(err);
         } else {
-          ctx.succeed();
+          cb(null);
         }
       });
     });
+};
+
+exports.handle = function(e, ctx) {
+  var s3 = new AWS.S3();
+  var dynamodb = new AWS.DynamoDB({region: 'eu-west-1'});
+
+  var bucketName = e.Records[0].s3.bucket.name;
+  var objectKey = e.Records[0].s3.object.key;
+
+  if (objectKey.endsWith('json')) {
+
+    Promise.promisify(fetchJSONFile)(s3, bucketName, objectKey)
+      .then(function(jsonFile) {
+        var packagesToBeDone = JSON.parse(jsonFile.Body);
+        return packagesToBeDone;
+      })
+      .map(function(packageVersion) {
+        return Promise.promisify(parsePackageVersion)(s3, dynamodb, packageVersion.s3bucket, packageVersion.s3key)
+          .then(function() {
+            return { status: 'succeed'};
+          })
+          .catch(function(err) {
+            console.warn('failed');
+            return { status: 'failed', reason: err};
+          });
+      })
+      .then(function(result) {
+        console.info(result);
+        ctx.succeed();
+      })
+      .catch(function(err) {
+        ctx.fail(err);
+      });
+
+  } else if (objectKey.endsWith('.tar.gz')) {
+    parsePackageVersion(s3, dynamodb, bucketName, objectKey, function(err, res) {
+      if (err !== null) ctx.fail(err);
+      else ctx.succeed(); 
+    });
+  }
+
+  
 };
 
