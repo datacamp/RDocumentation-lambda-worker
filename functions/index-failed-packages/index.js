@@ -60,6 +60,7 @@ exports.handle = function(e, ctx) {
   
   Promise.promisify(listFailedPackageVersions)(dynamodb)
     .then(function(packageList) {
+      console.log(packageList.Count);
       if (!packageList.Items) throw 'Nothing failed !';
       else return packageList.Items.map(function(packageVersion) {
         var name = packageVersion.PackageName;
@@ -74,7 +75,7 @@ exports.handle = function(e, ctx) {
     })
     .each(function(packageVersion) {
       buffer.push(packageVersion);
-      if (buffer.length >= 200) {
+      if (buffer.length >= 100) {
         var json = JSON.stringify(buffer, null, 2);
         return Promise.promisify(fs.open)('failed/toParse' + bufferId + '.json', 'w')
           .then(function(fd) {
@@ -86,6 +87,18 @@ exports.handle = function(e, ctx) {
             console.info('Wrote buffer');
           });
       }
+    })
+    .then(function() {
+      var json = JSON.stringify(buffer, null, 2);
+      return Promise.promisify(fs.open)('failed/toParse' + bufferId + '.json', 'w')
+        .then(function(fd) {
+          return Promise.promisify(fs.writeFile)(fd, json);
+        })
+        .then(function(res) {
+          bufferId++;
+          buffer = [];
+          console.info('Wrote buffer');
+        });
     })
     .then(function() {
       ctx.succeed();
