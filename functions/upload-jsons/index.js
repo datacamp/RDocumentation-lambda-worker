@@ -92,6 +92,7 @@ exports.handle = function(e, ctx) {
               return Promise.promisify(postJSON)(postURL + 'versions', JSON.parse(object.Body.toString('utf8')));
             })
             .then(function(postDescriptionResult) {
+              if (postDescriptionResult.response.statusCode !== 200) throw postDescriptionResult;
               return Promise.map(topicList, function(item) {
                 return Promise.promisify(getJSON)(s3, bucketName, item.Key)
                   .then(function(object) {
