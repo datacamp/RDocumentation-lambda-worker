@@ -1,5 +1,5 @@
 {
-  "description": "Index all Packages for which parsing failed",
+  "description": "Index all Packages to be synced",
   "timeout": 300,
   "memory": 128
 }
