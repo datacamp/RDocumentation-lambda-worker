@@ -32,6 +32,7 @@ var postJSON= function(url, body, cb) {
       console.log(error);
       cb(error);
     } else {
+      if(response.statusCode !== 200) console.log(url + ' ' + response.statusCode + '\n' + response.body);
       cb(null, {response: response, body: body});
     }
   });
