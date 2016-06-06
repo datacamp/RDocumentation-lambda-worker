@@ -128,7 +128,7 @@ exports.handle = function(e, ctx) {
           console.warn(error);
           return error;
         });
-    }, {concurrency: 3})
+    }, {concurrency: 6})
     .then(function() {
       ctx.succeed();
     })
