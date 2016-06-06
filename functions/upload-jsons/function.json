@@ -1,0 +1,5 @@
+{
+  "description": "Upload JSON from S3 to DB",
+  "timeout": 300,
+  "memory": 512
+}
