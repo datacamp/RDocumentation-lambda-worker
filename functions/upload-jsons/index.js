@@ -2,14 +2,6 @@ var AWS = require('aws-sdk');
 var Promise = require('bluebird');
 var request = require('request');
 
-var getPackageVersions = function(dynDB, cb) {
-  var params = {
-    TableName: 'rdoc-packages',
-    FilterExpression: 'attribute_not_exists(SyncResult)',
-    ProjectionExpression: 'PackageName, PackageVersion'
-  };
-  return dynDB.scan(params, cb);
-};
 
 var listJSONS = function(s3, bucket, packageName, packageVersion, cb) {
   var params = {
