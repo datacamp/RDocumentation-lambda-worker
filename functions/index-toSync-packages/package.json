@@ -1,0 +1,10 @@
+{
+  "name": "index-toSync-packages-lambda-function",
+  "version": "0.2.0",
+  "main": "index.js",
+  "author": "DataCamp",
+  "dependencies": {
+    "aws-sdk": "^2.3.9",
+    "bluebird": "^3.4.0"
+  }
+}
