@@ -27,20 +27,20 @@ var postJSON= function(url, body, cb) {
     json: body
   };
 
-  request(options, function (error, response, body) {
+  request(options, function (error, response, responseBody) {
     if (error) {
       console.log(error);
       cb(error);
     } else {
-      if(response.statusCode !== 200) console.log(url + ' ' + response.statusCode + '\n' + response.body);
-      cb(null, {response: response, body: body});
+      if(response.statusCode !== 200 && response.statusCode !== 409) 
+        console.warn(url + ' ' + response.statusCode + '\n Body' + body + '\nResponse' + response.toJSON());
+      cb(null, {response: response, body: responseBody});
     }
   });
 };
 
 
 var syncDynamoDB = function(dynDB, packageName, packageVersion, value, callback) {
-  console.log(value);
   var params = {
     TableName: 'rdoc-packages',
     Key: {
@@ -75,7 +75,6 @@ exports.handle = function(e, ctx) {
       var packagesToBeDone = JSON.parse(jsonFile.Body);
       return packagesToBeDone;
     }).then(function(packageList){
-    console.log(packageList);
     return Promise.map(packageList, function(package) {
       var packageName = package.name;
       var packageVersion = package.version;
@@ -93,7 +92,9 @@ exports.handle = function(e, ctx) {
               return Promise.promisify(postJSON)(postURL + 'versions', JSON.parse(object.Body.toString('utf8')));
             })
             .then(function(postDescriptionResult) {
-              if (postDescriptionResult.response.statusCode !== 200) throw postDescriptionResult;
+              if (postDescriptionResult.response.statusCode !== 200) {
+                throw postDescriptionResult;
+              }
               return Promise.map(topicList, function(item) {
                 return Promise.promisify(getJSON)(s3, bucketName, item.Key)
                   .then(function(object) {
@@ -110,13 +111,11 @@ exports.handle = function(e, ctx) {
               });
               var val;
               if (error) {
-                console.log(error.response.statusCode);
-                console.log(error.response.body);
                 val = error.response.statusCode;
               } else {
                 val = 200;
               }
-              console.log(packageName + '-' + packageVersion + ' ' + val);
+              console.info(packageName + '-' + packageVersion + ' ' + val);
               return Promise.promisify(syncDynamoDB)(dynamodb, packageName, packageVersion, val);
             });
           
@@ -125,10 +124,9 @@ exports.handle = function(e, ctx) {
           return dynDBResult;
         })
         .catch(function(error) {
-          console.warn(error);
           return error;
         });
-    }, {concurrency: 3})
+    }, {concurrency: 4})
     .then(function() {
       ctx.succeed();
     })
