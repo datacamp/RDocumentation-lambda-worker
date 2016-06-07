@@ -33,7 +33,7 @@ var postJSON= function(url, body, cb) {
       cb(error);
     } else {
       if(response.statusCode !== 200 && response.statusCode !== 409) 
-        console.warn(url + ' ' + response.statusCode + '\n Body' + body + '\nResponse' + response.toJSON());
+        console.warn(url + ' ' + response.statusCode + '\n Body' + JSON.stringify(body) + '\nResponse' + JSON.stringify(response.toJSON()));
       cb(null, {response: response, body: responseBody});
     }
   });

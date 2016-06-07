@@ -5,9 +5,10 @@ var listToSyncPackageVersions = function(dynDB, lastKey, limit, callback) {
   console.info('Fetching package list');
   var params = {
     TableName: 'rdoc-packages',
-    FilterExpression: 'SyncResult <> :success',
+    FilterExpression: 'SyncResult = :timeout OR SyncResult = :notfound OR attribute_not_exists(SyncResult)',
     ExpressionAttributeValues: {
-      ':success': 200
+      ':timeout': 503,
+      ':notfound': 404,
     },
     Limit: limit,
     ProjectionExpression: 'PackageName, PackageVersion',
