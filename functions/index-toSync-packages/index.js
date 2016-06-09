@@ -5,10 +5,10 @@ var listToSyncPackageVersions = function(dynDB, lastKey, limit, callback) {
   console.info('Fetching package list');
   var params = {
     TableName: 'rdoc-packages',
-    FilterExpression: 'SyncResult = :timeout OR SyncResult = :notfound OR attribute_not_exists(SyncResult)',
+    FilterExpression: 'SyncResult <> 200 AND SyncResult < :threshold',
     ExpressionAttributeValues: {
-      ':timeout': 503,
-      ':notfound': 404,
+      ':success': 200,
+      ':threshold': 1000
     },
     Limit: limit,
     ProjectionExpression: 'PackageName, PackageVersion',
@@ -55,6 +55,8 @@ exports.handle = function(e, ctx) {
           var version = packageVersion.PackageVersion;
           return {
             name: name,
+            s3bucket: bucketName,
+            s3key: 'rpackages/archived/' + name + '/' + name + '_' + version + '.tar.gz',
             version: version
           };
         });
@@ -88,7 +90,7 @@ exports.handle = function(e, ctx) {
       buffer.push(packageVersion);
       if (buffer.length >= 100) {
         var json = JSON.stringify(buffer, null, 2);
-        return Promise.promisify(putObject)(s3, 'rpackages/toSync/toSync' + bufferId + '.json', json)
+        return Promise.promisify(putObject)(s3, 'rpackages/toParse/toParse' + bufferId + '.json', json)
           .then(function() {
             bufferId++;
             buffer = [];
@@ -99,7 +101,7 @@ exports.handle = function(e, ctx) {
     })
     .then(function() {
       var json = JSON.stringify(buffer, null, 2);
-        return Promise.promisify(putObject)(s3, 'rpackages/toSync/toSync' + bufferId + '.json', json)
+        return Promise.promisify(putObject)(s3, 'rpackages/toParse/toParse' + bufferId + '.json', json)
           .then(function() {
             bufferId++;
             buffer = [];
