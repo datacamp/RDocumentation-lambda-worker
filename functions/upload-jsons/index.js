@@ -80,6 +80,7 @@ exports.handle = function(e, ctx) {
     return Promise.map(packageList, function(package) {
       var packageName = package.name;
       var packageVersion = package.version;
+      var descriptionJSON;
       console.info('====Start Processing: ' + packageName + '-' + packageVersion + '========='); 
       return Promise.promisify(listJSONS)(s3, bucketName, packageName, packageVersion)
         .then(function(s3Result) {
@@ -93,7 +94,8 @@ exports.handle = function(e, ctx) {
           return Promise.promisify(getJSON)(s3, bucketName, description.Key)
             .then(function(object) {
               console.info('Description of ' + packageName + '-' + packageVersion + object.Body.toString('utf8')); 
-              return Promise.promisify(postJSON)(postURL + 'versions', JSON.parse(object.Body.toString('utf8')));
+              descriptionJSON = JSON.parse(object.Body.toString('utf8'));
+              return Promise.promisify(postJSON)(postURL + 'versions', descriptionJSON);
             })
             .then(function(postDescriptionResult) {
               console.info('Result of post description of ' + packageName + '-' + packageVersion + ' ' + postDescriptionResult.response.statusCode);
@@ -105,7 +107,7 @@ exports.handle = function(e, ctx) {
                 return Promise.map(topicList, function(item) {
                   return Promise.promisify(getJSON)(s3, bucketName, item.Key)
                     .then(function(object) {
-                      var url = postURL + 'packages/' + packageName + '/versions/' + packageVersion + '/topics';
+                      var url = postURL + 'packages/' + packageName + '/versions/' + descriptionJSON.Version + '/topics';
                       return Promise.promisify(postJSON)(url, JSON.parse(object.Body.toString('utf8')));
                     }); 
                 }).then(function(postTopicsResult) {
