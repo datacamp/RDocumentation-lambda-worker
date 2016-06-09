@@ -110,7 +110,7 @@ var parsePackageVersion = function(s3, dynamodb, bucketName, objectKey, cb) {
   unzippedStream.on('entry', function(file) {
     if (file.type === 'File') {
       var path = file.path.split('/');
-      if (/\.Rd$/.test(file.path) && path[1] === 'man') {
+      if ((/\.Rd$/.test(file.path) || /\.rd$/.test(file.path))&& path[1] === 'man') {
         console.info('Found Rd file: ' + file.path);
         rdFileStream.emit('data', file);
       } else if (/DESCRIPTION$/.test(file.path)) {
@@ -190,6 +190,14 @@ var parsePackageVersion = function(s3, dynamodb, bucketName, objectKey, cb) {
 
 };
 
+var putObject = function(s3, key, body, cb) {
+  s3.putObject({
+    Bucket: 'assets.rdocumentation.org', 
+    Key: key,
+    Body: body
+  }, cb);
+};
+
 exports.handle = function(e, ctx) {
   var s3 = new AWS.S3();
   var dynamodb = new AWS.DynamoDB({region: 'eu-west-1'});
@@ -202,25 +210,28 @@ exports.handle = function(e, ctx) {
     Promise.promisify(fetchJSONFile)(s3, bucketName, objectKey)
       .then(function(jsonFile) {
         var packagesToBeDone = JSON.parse(jsonFile.Body);
-        return packagesToBeDone;
-      })
-      .map(function(packageVersion) {
-        return Promise.promisify(parsePackageVersion)(s3, dynamodb, packageVersion.s3bucket, packageVersion.s3key)
-          .then(function() {
-            return { status: 'succeed'};
-          })
-          .catch(function(err) {
-            console.warn('failed');
-            return { status: 'failed', reason: err};
-          });
-      }, {concurrency : 10 })
-      .then(function(result) {
-        console.info(result);
-        ctx.succeed();
-      })
-      .catch(function(err) {
-        ctx.fail(err);
+        return Promise.map(packagesToBeDone, function(packageVersion) {
+          return Promise.promisify(parsePackageVersion)(s3, dynamodb, packageVersion.s3bucket, packageVersion.s3key)
+            .then(function() {
+              return { status: 'succeed'};
+            })
+            .catch(function(err) {
+              console.warn('failed');
+              return { status: 'failed', reason: err};
+            });
+        }, {concurrency : 10 })
+        .then(function(result) {
+          console.info(result);
+          return Promise.promisify(putObject)(s3, objectKey.replace('toParse', 'toSync'), jsonFile.Body);
+        })
+        .then(function(result) {
+          ctx.succeed();
+        })
+        .catch(function(err) {
+          ctx.fail(err);
+        });
       });
+      
 
   } else if (objectKey.endsWith('.tar.gz')) {
     parsePackageVersion(s3, dynamodb, bucketName, objectKey, function(err, res) {
