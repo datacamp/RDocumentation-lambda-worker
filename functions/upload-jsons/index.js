@@ -57,6 +57,9 @@ var syncDynamoDB = function(dynDB, packageName, packageVersion, value, callback)
   dynDB.updateItem(params, callback);
 };
 
+var PostDescError = function(e) {
+    return e.response.statusCode !== 200;
+};
 
 exports.handle = function(e, ctx) {
   var s3 = new AWS.S3();
@@ -84,6 +87,7 @@ exports.handle = function(e, ctx) {
             return item.Key.endsWith('DESCRIPTION.json');
           });
           var description = s3Result.Contents[descriptionIndex];
+          console.log(description);
           var topicList = s3Result.Contents.filter(function(item) {
             return !item.Key.endsWith('DESCRIPTION.json') && !item.Key.endsWith('NEWS.json');
           });
@@ -93,30 +97,31 @@ exports.handle = function(e, ctx) {
             })
             .then(function(postDescriptionResult) {
               if (postDescriptionResult.response.statusCode !== 200) {
-                throw postDescriptionResult;
+                return Promise.promisify(syncDynamoDB)(dynamodb, packageName, packageVersion, postDescriptionResult.response.statusCode);
               }
-              return Promise.map(topicList, function(item) {
-                return Promise.promisify(getJSON)(s3, bucketName, item.Key)
-                  .then(function(object) {
-                    var url = postURL + 'packages/' + packageName + '/versions/' + packageVersion + '/topics';
-                    return Promise.promisify(postJSON)(url, JSON.parse(object.Body.toString('utf8')));
-                  }); 
-              }).then(function(postTopicsResult) {
-                return postTopicsResult.concat(postDescriptionResult);
-              });
-            })
-            .then(function(resultList) {
-              var error = resultList.find(function(response) {
-                return response.response.statusCode !== 200 && response.response.statusCode !== 409;
-              });
-              var val;
-              if (error) {
-                val = error.response.statusCode;
-              } else {
-                val = 200;
+              else {
+                return Promise.map(topicList, function(item) {
+                  return Promise.promisify(getJSON)(s3, bucketName, item.Key)
+                    .then(function(object) {
+                      var url = postURL + 'packages/' + packageName + '/versions/' + packageVersion + '/topics';
+                      return Promise.promisify(postJSON)(url, JSON.parse(object.Body.toString('utf8')));
+                    }); 
+                }).then(function(postTopicsResult) {
+                  return postTopicsResult.concat(postDescriptionResult);
+                }).then(function(resultList) {
+                  var error = resultList.find(function(response) {
+                    return response.response.statusCode !== 200 && response.response.statusCode !== 409;
+                  });
+                  var val;
+                  if (error) {
+                    val = 1000 + error.response.statusCode;
+                  } else {
+                    val = 200;
+                  }
+                  console.info(packageName + '-' + packageVersion + ' ' + val);
+                  return Promise.promisify(syncDynamoDB)(dynamodb, packageName, packageVersion, val);
+                });
               }
-              console.info(packageName + '-' + packageVersion + ' ' + val);
-              return Promise.promisify(syncDynamoDB)(dynamodb, packageName, packageVersion, val);
             });
           
         })
