@@ -32,9 +32,11 @@ var postJSON= function(url, body, cb) {
       console.log(error);
       cb(error);
     } else {
-      if(response.statusCode !== 200 && response.statusCode !== 409) 
-        //console.warn(url + ' ' + response.statusCode + '\n Body' + JSON.stringify(body) + '\nResponse' + JSON.stringify(response.toJSON()));
-      cb(null, {response: response, body: responseBody});
+      if(response.statusCode !== 200 && response.statusCode !== 409) {
+      //console.warn(url + ' ' + response.statusCode + '\n Body' + JSON.stringify(body) + '\nResponse' + JSON.stringify(response.toJSON()));
+        
+      }
+      cb(null, {response: response, body: responseBody}); 
     }
   });
 };
@@ -57,9 +59,6 @@ var syncDynamoDB = function(dynDB, packageName, packageVersion, value, callback)
   dynDB.updateItem(params, callback);
 };
 
-var PostDescError = function(e) {
-    return e.response.statusCode !== 200;
-};
 
 exports.handle = function(e, ctx) {
   var s3 = new AWS.S3();
@@ -97,9 +96,9 @@ exports.handle = function(e, ctx) {
               return Promise.promisify(postJSON)(postURL + 'versions', JSON.parse(object.Body.toString('utf8')));
             })
             .then(function(postDescriptionResult) {
-              console.info('Result of post description of ' + packageName + '-' + packageVersion + postDescriptionResult.response.statusCode);
-              console.warn(packageName + ' ' + packageVersion + '\n Body' + JSON.stringify(postDescriptionResult.body) + '\nResponse' + JSON.stringify(postDescriptionResult.response.toJSON()));
+              console.info('Result of post description of ' + packageName + '-' + packageVersion + ' ' + postDescriptionResult.response.statusCode);
               if (postDescriptionResult.response.statusCode !== 200) {
+                console.warn(packageName + ' ' + packageVersion + '\n Body' + JSON.stringify(postDescriptionResult.body) + '\nResponse' + JSON.stringify(postDescriptionResult.response.toJSON()));
                 return Promise.promisify(syncDynamoDB)(dynamodb, packageName, packageVersion, postDescriptionResult.response.statusCode);
               }
               else {
@@ -110,17 +109,12 @@ exports.handle = function(e, ctx) {
                       return Promise.promisify(postJSON)(url, JSON.parse(object.Body.toString('utf8')));
                     }); 
                 }).then(function(postTopicsResult) {
-                  return postTopicsResult.concat(postDescriptionResult);
-                }).then(function(resultList) {
+                  var resultList = postTopicsResult.concat(postDescriptionResult);
                   var error = resultList.find(function(response) {
                     return response.response.statusCode !== 200 && response.response.statusCode !== 409;
                   });
-                  var val;
-                  if (error) {
-                    val = 1000 + error.response.statusCode;
-                  } else {
-                    val = 200;
-                  }
+                  var val = error ? 1000 + error.response.statusCode : 200;
+
                   console.info(packageName + '-' + packageVersion + ' ' + val);
                   return Promise.promisify(syncDynamoDB)(dynamodb, packageName, packageVersion, val);
                 });
