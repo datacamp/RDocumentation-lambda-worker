@@ -59,7 +59,8 @@ var syncDynamoDB = function(dynDB, packageInfo, value, callback) {
 };
 
 var descFileParserUploaderPipe = function(s3, bucketName, destDir, version) {
-  return es.map(function (fileStream, callback) {
+  return es.through(function (fileStream) {
+    var self = this;
     var completePath = fileStream.path.split('/');
     var packageName = completePath[0];
     completePath[completePath.length - 1] = completePath[completePath.length - 1] += '.json';
@@ -68,12 +69,20 @@ var descFileParserUploaderPipe = function(s3, bucketName, destDir, version) {
 
     var control = controlParser(fileStream);
     var json = {};
+   
     control.on('stanza', function(stanza) {
+      console.log(stanza);
       json = stanza;
     });
     control.on('done', function() {
+      console.log(json);
       uploadData(s3, bucketName, path, JSON.stringify(json, null, 4), function(err, data) {
-        callback(err, path);
+        if(err) {
+          self.emit('error', err);
+        } else {
+          self.emit('data', data);
+          self.emit('end');
+        }
       });
     });
 
@@ -150,31 +159,36 @@ var parsePackageVersion = function(s3, dynamodb, bucketName, objectKey, cb) {
     }
   });
 
-  descFileStream.pipe(descFileParserUploaderPipe(s3, bucketName, dirPath, version));
+  var descResultStream = descFileStream.pipe(descFileParserUploaderPipe(s3, bucketName, dirPath, version));
 
-  rdFileStream.pipe(rdFileToJsonToS3Stream)
+  var rdResultStream = rdFileStream.pipe(rdFileToJsonToS3Stream)
     .on('data', function(data) {
       console.info('Uploaded to: ' + data);
-    })
-    .on('error', function(err) {
-      console.log('Pipe error ' + err);
-      syncDynamoDB(dynamodb, packageInfo, '-1', function(err, res) {
-        if (err !== null) {
-          console.log('failed to update dynamodb');
-        }
-        cb(err);
-      });
-    })
-    .on('end', function() {
-      syncDynamoDB(dynamodb, packageInfo, '' + new Date().getTime(), function(err, res) {
-        if (err !== null) {
-          console.log('failed to update dynamodb');
-          cb(err);
-        } else {
-          cb(null);
-        }
-      });
     });
+    
+
+
+  es.merge(descResultStream, rdResultStream).on('error', function(err) {
+    console.log('Pipe error ' + err);
+    syncDynamoDB(dynamodb, packageInfo, '-1', function(err, res) {
+      if (err !== null) {
+        console.log('failed to update dynamodb');
+      }
+      cb(err, res);
+    });
+  })
+  .on('end', function() {
+    syncDynamoDB(dynamodb, packageInfo, '' + new Date().getTime(), function(err, res) {
+      if (err !== null) {
+        console.log('failed to update dynamodb');
+        cb(err);
+      } else {
+        console.log('done');
+        cb(null, res);
+      }
+    });
+  });
+
 };
 
 exports.handle = function(e, ctx) {
