@@ -81,6 +81,7 @@ exports.handle = function(e, ctx) {
     return Promise.map(packageList, function(package) {
       var packageName = package.name;
       var packageVersion = package.version;
+      console.info('====Start Processing: ' + packageName + '-' + packageVersion + '========='); 
       return Promise.promisify(listJSONS)(s3, bucketName, packageName, packageVersion)
         .then(function(s3Result) {
           var descriptionIndex = s3Result.Contents.findIndex(function(item) {
@@ -92,9 +93,11 @@ exports.handle = function(e, ctx) {
           });
           return Promise.promisify(getJSON)(s3, bucketName, description.Key)
             .then(function(object) {
+              console.info('Description of ' + packageName + '-' + packageVersion + object.Body.toString('utf8')); 
               return Promise.promisify(postJSON)(postURL + 'versions', JSON.parse(object.Body.toString('utf8')));
             })
             .then(function(postDescriptionResult) {
+              console.info('Result of post description of ' + packageName + '-' + packageVersion + postDescriptionResult.response.statusCode);
               console.warn(packageName + ' ' + packageVersion + '\n Body' + JSON.stringify(postDescriptionResult.body) + '\nResponse' + JSON.stringify(postDescriptionResult.response.toJSON()));
               if (postDescriptionResult.response.statusCode !== 200) {
                 return Promise.promisify(syncDynamoDB)(dynamodb, packageName, packageVersion, postDescriptionResult.response.statusCode);
@@ -136,7 +139,7 @@ exports.handle = function(e, ctx) {
       ctx.succeed();
     })
     .catch(function(error) {
-      ctx.succeed(error);
+      ctx.fail(error);
     });
     
   });
