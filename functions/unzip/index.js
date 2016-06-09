@@ -71,7 +71,6 @@ var descFileParserUploaderPipe = function(s3, bucketName, destDir, version) {
     var json = {};
    
     control.on('stanza', function(stanza) {
-      console.log(stanza);
       json = stanza;
     });
     control.on('done', function() {
