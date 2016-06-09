@@ -33,7 +33,7 @@ var postJSON= function(url, body, cb) {
       cb(error);
     } else {
       if(response.statusCode !== 200 && response.statusCode !== 409) 
-        console.warn(url + ' ' + response.statusCode + '\n Body' + JSON.stringify(body) + '\nResponse' + JSON.stringify(response.toJSON()));
+        //console.warn(url + ' ' + response.statusCode + '\n Body' + JSON.stringify(body) + '\nResponse' + JSON.stringify(response.toJSON()));
       cb(null, {response: response, body: responseBody});
     }
   });
@@ -87,7 +87,6 @@ exports.handle = function(e, ctx) {
             return item.Key.endsWith('DESCRIPTION.json');
           });
           var description = s3Result.Contents[descriptionIndex];
-          console.log(description);
           var topicList = s3Result.Contents.filter(function(item) {
             return !item.Key.endsWith('DESCRIPTION.json') && !item.Key.endsWith('NEWS.json');
           });
@@ -96,6 +95,7 @@ exports.handle = function(e, ctx) {
               return Promise.promisify(postJSON)(postURL + 'versions', JSON.parse(object.Body.toString('utf8')));
             })
             .then(function(postDescriptionResult) {
+              console.warn(packageName + ' ' + packageVersion + '\n Body' + JSON.stringify(postDescriptionResult.body) + '\nResponse' + JSON.stringify(postDescriptionResult.response.toJSON()));
               if (postDescriptionResult.response.statusCode !== 200) {
                 return Promise.promisify(syncDynamoDB)(dynamodb, packageName, packageVersion, postDescriptionResult.response.statusCode);
               }
