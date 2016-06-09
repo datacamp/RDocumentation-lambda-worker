@@ -76,7 +76,7 @@ exports.handle = function(e, ctx) {
       }
     })
     .then(function(lastKey) {
-      return getToSyncPackages([], lastKey, 500);
+      return getToSyncPackages([], lastKey, 300);
     })
     .then(function(list) {
       console.log(newLastKey);
