@@ -5,7 +5,7 @@ var listToSyncPackageVersions = function(dynDB, lastKey, limit, callback) {
   console.info('Fetching package list');
   var params = {
     TableName: 'rdoc-packages',
-    FilterExpression: '(SyncResult <> :success',
+    FilterExpression: 'SyncResult <> :success',
     ExpressionAttributeValues: {
       ':success': 200
     },
