@@ -89,7 +89,10 @@ exports.handle = function(e, ctx) {
           });
           var description = s3Result.Contents[descriptionIndex];
           var topicList = s3Result.Contents.filter(function(item) {
-            return !item.Key.endsWith('DESCRIPTION.json') && !item.Key.endsWith('NEWS.json');
+            var notNEWS = !item.Key.endsWith('NEWS.json');
+            var notDESCRIPTION = !item.Key.endsWith('DESCRIPTION.json');
+            var inTopicFolder = /topics\/([^\/]*)\.json$/.test(item.Key);
+            return notNEWS && notDESCRIPTION && inTopicFolder;
           });
           return Promise.promisify(getJSON)(s3, bucketName, description.Key)
             .then(function(object) {
