@@ -3,10 +3,10 @@ var Promise = require('bluebird');
 var request = require('request');
 
 
-var listJSONS = function(s3, bucket, packageName, packageVersion, cb) {
+var listJSONS = function(s3, bucket, prefix, cb) {
   var params = {
     Bucket: bucket,
-    Prefix: 'rpackages/unarchived/' + packageName + '/' + packageVersion
+    Prefix: prefix
   };
   s3.listObjects(params, cb);
 };
@@ -78,14 +78,14 @@ exports.handle = function(e, ctx) {
       return packagesToBeDone;
     }).then(function(packageList){
     return Promise.map(packageList, function(package) {
-      var packageName = package.name;
-      var packageVersion = package.version;
+      var name = package.name;
+      var s3ZippedKey = package.s3ZippedKey;
       var descriptionJSON;
-      console.info('====Start Processing: ' + packageName + '-' + packageVersion + '========='); 
-      return Promise.promisify(listJSONS)(s3, bucketName, packageName, packageVersion)
+      console.info('====Start Processing: ' + name + '========='); 
+      return Promise.promisify(listJSONS)(s3, bucketName, s3ZippedKey)
         .then(function(s3Result) {
           var descriptionIndex = s3Result.Contents.findIndex(function(item) {
-            return item.Key === 'rpackages/unarchived/' + packageName + '/' + packageVersion+ '/DESCRIPTION.json';
+            return item.Key.endsWith('/DESCRIPTION.json');
           });
           var description = s3Result.Contents[descriptionIndex];
           var topicList = s3Result.Contents.filter(function(item) {
@@ -96,14 +96,14 @@ exports.handle = function(e, ctx) {
           });
           return Promise.promisify(getJSON)(s3, bucketName, description.Key)
             .then(function(object) {
-              console.info('Description of ' + packageName + '-' + packageVersion + object.Body.toString('utf8')); 
+              console.info('Description of ' + name + '-' + object.Body.toString('utf8')); 
               descriptionJSON = JSON.parse(object.Body.toString('utf8'));
               return Promise.promisify(postJSON)(postURL + 'versions', descriptionJSON);
             })
             .then(function(postDescriptionResult) {
-              console.info('Result of post description of ' + packageName + '-' + packageVersion + ' ' + postDescriptionResult.response.statusCode);
+              console.info('Result of post description of ' + name  + ' ' + postDescriptionResult.response.statusCode);
               if (postDescriptionResult.response.statusCode !== 200) {
-                console.warn(packageName + ' ' + packageVersion + '\n Body' + JSON.stringify(postDescriptionResult.body) + '\nResponse' + JSON.stringify(postDescriptionResult.response.toJSON()));
+                console.warn(name + '\n Body' + JSON.stringify(postDescriptionResult.body) + '\nResponse' + JSON.stringify(postDescriptionResult.response.toJSON()));
                 return Promise.promisify(syncDynamoDB)(dynamodb, packageName, packageVersion, postDescriptionResult.response.statusCode);
               }
               else {

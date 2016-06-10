@@ -1,23 +1,15 @@
 var AWS = require('aws-sdk'); 
 var Promise = require('bluebird');
+var config = require('./config/config.js');
 
-var listToSyncPackageVersions = function(dynDB, lastKey, limit, callback) {
+var listToSyncPackageVersions = function(dynDB, lastKey, limit, config, callback) {
   console.info('Fetching package list');
-  var params = {
-    TableName: 'rdoc-packages',
-    FilterExpression: 'SyncResult <> :success AND PackageName <> :p',
-    ExpressionAttributeValues: {
-      ':success': 200,
-      ':p': 'RGtk2'
-    },
-    Limit: limit,
-    ProjectionExpression: 'PackageName, PackageVersion',
-    ExclusiveStartKey: lastKey
-  };
-  return dynDB.scan(params, callback);
+  return dynDB.scan(config.dynamoDBQueryParams(limit, lastKey), callback);
 };
 
+
 var getObject = function(s3, bucket, key, cb) {
+  console.log(key);
   var params = {
     Bucket: bucket, /* required */
     Key: key, /* required */
@@ -27,11 +19,13 @@ var getObject = function(s3, bucket, key, cb) {
 };
 
 var putObject = function(s3, key, body, cb) {
-  s3.putObject({
-    Bucket: 'assets.rdocumentation.org', 
-    Key: key,
-    Body: body
-  }, cb);
+  // s3.putObject({
+  //   Bucket: 'assets.rdocumentation.org', 
+  //   Key: key,
+  //   Body: body
+  // }, cb);
+  console.log(body);
+  cb(null, 'success');
 };
 
 
@@ -43,22 +37,17 @@ exports.handle = function(e, ctx) {
   var buffer = [];
   var bufferId = 0;
   var bucketName = 'assets.rdocumentation.org';
-  var lastEvaluatedKeyS3Key = 'rpackages/lastKey.json';
   var newLastKey = null;
+  var configRepo = config[e.type];
+  var lastEvaluatedKeyS3Key = configRepo.lastEvaluatedKeyS3Key;
 
   var getToSyncPackages = function(list, lastKey, limit) {
-    return Promise.promisify(listToSyncPackageVersions)(dynamodb, lastKey, limit)
+    return Promise.promisify(listToSyncPackageVersions)(dynamodb, lastKey, limit, configRepo)
       .then(function(packageList) {
         console.log(packageList.Count);
         var mappedList = packageList.Items.map(function(packageVersion) {
-          var name = packageVersion.PackageName;
-          var version = packageVersion.PackageVersion;
-          return {
-            name: name,
-            s3bucket: bucketName,
-            s3key: 'rpackages/archived/' + name + '/' + name + '_' + version + '.tar.gz',
-            version: version
-          };
+          
+          return configRepo.mapper(packageVersion);
         });
         newLastKey = packageList.LastEvaluatedKey;
         if (list.length + mappedList.length < limit) {
@@ -77,7 +66,7 @@ exports.handle = function(e, ctx) {
       }
     })
     .then(function(lastKey) {
-      return getToSyncPackages([], lastKey, 300);
+      return getToSyncPackages([], lastKey, config.limit);
     })
     .then(function(list) {
       console.log(newLastKey);
@@ -88,7 +77,7 @@ exports.handle = function(e, ctx) {
     })
     .each(function(packageVersion) {
       buffer.push(packageVersion);
-      if (buffer.length >= 100) {
+      if (buffer.length >= config.limitPerBuffer) {
         var json = JSON.stringify(buffer, null, 2);
         return Promise.promisify(putObject)(s3, 'rpackages/toParse/toParse' + bufferId + '.json', json)
           .then(function() {
