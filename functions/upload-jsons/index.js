@@ -85,7 +85,7 @@ exports.handle = function(e, ctx) {
       return Promise.promisify(listJSONS)(s3, bucketName, packageName, packageVersion)
         .then(function(s3Result) {
           var descriptionIndex = s3Result.Contents.findIndex(function(item) {
-            return item.Key.endsWith('DESCRIPTION.json');
+            return item.Key === 'rpackages/unarchived/' + packageName + '/' + packageVersion+ '/DESCRIPTION.json';
           });
           var description = s3Result.Contents[descriptionIndex];
           var topicList = s3Result.Contents.filter(function(item) {
