@@ -130,7 +130,7 @@ exports.handle = function(e, ctx) {
         .catch(function(error) {
           return error;
         });
-    }, {concurrency: 3})
+    }, {concurrency: 5})
     .then(function() {
       ctx.succeed();
     })
