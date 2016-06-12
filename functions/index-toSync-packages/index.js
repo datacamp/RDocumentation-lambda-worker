@@ -24,7 +24,6 @@ var putObject = function(s3, key, body, cb) {
     Key: key,
     Body: body
   }, cb);
-  cb(null, 'success');
 };
 
 
