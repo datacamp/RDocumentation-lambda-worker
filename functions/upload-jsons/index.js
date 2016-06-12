@@ -1,7 +1,6 @@
 var AWS = require('aws-sdk'); 
 var Promise = require('bluebird');
 var request = require('request');
-var config = require('./config/config.js');
 
 
 var listJSONS = function(s3, bucket, prefix, cb) {
@@ -82,10 +81,10 @@ exports.handle = function(e, ctx) {
     return Promise.map(packageList, function(package) {
       var name = package.name;
       var version = package.version;
-      var s3ZippedKey = package.s3ZippedKey;
+      var s3ParsedPrefix = package.s3ParsedPrefix;
       var descriptionJSON;
       console.info('====Start Processing: ' + name + '========='); 
-      return Promise.promisify(listJSONS)(s3, bucketName, s3ZippedKey)
+      return Promise.promisify(listJSONS)(s3, bucketName, s3ParsedPrefix)
         .then(function(s3Result) {
           var descriptionIndex = s3Result.Contents.findIndex(function(item) {
             return item.Key.endsWith('/DESCRIPTION.json');
@@ -101,6 +100,10 @@ exports.handle = function(e, ctx) {
             .then(function(object) {
               console.info('Description of ' + name + '-' + object.Body.toString('utf8')); 
               descriptionJSON = JSON.parse(object.Body.toString('utf8'));
+              if (package.versionKey === 'BiocRelease')
+                descriptionJSON.repoType = 'bioconductor';
+              else
+                descriptionJSON.repoType = 'cran';
               return Promise.promisify(postJSON)(postURL + 'versions', descriptionJSON);
             })
             .then(function(postDescriptionResult) {
