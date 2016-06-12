@@ -1,6 +1,7 @@
 var AWS = require('aws-sdk'); 
 var Promise = require('bluebird');
 var request = require('request');
+var config = require('./config/config.js');
 
 
 var listJSONS = function(s3, bucket, prefix, cb) {
@@ -42,13 +43,14 @@ var postJSON= function(url, body, cb) {
 };
 
 
-var syncDynamoDB = function(dynDB, packageName, packageVersion, value, callback) {
+var syncDynamoDB = function(dynDB, item, value, callback) {
+  var key = {
+    PackageName : {S: item.name }
+  };
+  key[item.versionKey] = {S: item.version };
   var params = {
-    TableName: 'rdoc-packages',
-    Key: {
-        PackageVersion : {S: packageVersion },
-        PackageName : {S: packageName }
-    },
+    TableName: item.dynDBTable,
+    Key: key,
     AttributeUpdates: {
       SyncResult: {
         Action: 'PUT',
@@ -79,6 +81,7 @@ exports.handle = function(e, ctx) {
     }).then(function(packageList){
     return Promise.map(packageList, function(package) {
       var name = package.name;
+      var version = package.version;
       var s3ZippedKey = package.s3ZippedKey;
       var descriptionJSON;
       console.info('====Start Processing: ' + name + '========='); 
@@ -104,13 +107,13 @@ exports.handle = function(e, ctx) {
               console.info('Result of post description of ' + name  + ' ' + postDescriptionResult.response.statusCode);
               if (postDescriptionResult.response.statusCode !== 200) {
                 console.warn(name + '\n Body' + JSON.stringify(postDescriptionResult.body) + '\nResponse' + JSON.stringify(postDescriptionResult.response.toJSON()));
-                return Promise.promisify(syncDynamoDB)(dynamodb, packageName, packageVersion, postDescriptionResult.response.statusCode);
+                return Promise.promisify(syncDynamoDB)(dynamodb, package, postDescriptionResult.response.statusCode);
               }
               else {
                 return Promise.map(topicList, function(item) {
                   return Promise.promisify(getJSON)(s3, bucketName, item.Key)
                     .then(function(object) {
-                      var url = postURL + 'packages/' + packageName + '/versions/' + descriptionJSON.Version + '/topics';
+                      var url = postURL + 'packages/' + name + '/versions/' + descriptionJSON.Version + '/topics';
                       return Promise.promisify(postJSON)(url, JSON.parse(object.Body.toString('utf8')));
                     }); 
                 }).then(function(postTopicsResult) {
@@ -120,8 +123,8 @@ exports.handle = function(e, ctx) {
                   });
                   var val = error ? 1000 + error.response.statusCode : 200;
 
-                  console.info(packageName + '-' + packageVersion + ' ' + val);
-                  return Promise.promisify(syncDynamoDB)(dynamodb, packageName, packageVersion, val);
+                  console.info(name + '-' + version + ' ' + val);
+                  return Promise.promisify(syncDynamoDB)(dynamodb, package, val);
                 });
               }
             });
