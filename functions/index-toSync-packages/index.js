@@ -19,12 +19,11 @@ var getObject = function(s3, bucket, key, cb) {
 };
 
 var putObject = function(s3, key, body, cb) {
-  // s3.putObject({
-  //   Bucket: 'assets.rdocumentation.org', 
-  //   Key: key,
-  //   Body: body
-  // }, cb);
-  console.log(body);
+  s3.putObject({
+    Bucket: 'assets.rdocumentation.org', 
+    Key: key,
+    Body: body
+  }, cb);
   cb(null, 'success');
 };
 

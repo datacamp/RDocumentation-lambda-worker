@@ -1,8 +1,7 @@
 var AWS = require('aws-sdk'); 
-var fs = require('fs');
 var targz = require('tar.gz');
 var es = require('event-stream');
-var Promise = require("bluebird");
+var Promise = require('bluebird');
 var RDocParser = require('rd-to-json-parser');
 var controlParser = require('debian-control-parser');
 
@@ -16,23 +15,6 @@ var uploadData = function(s3Client, bucketName, key, body, callback) {
   }, callback);
 };
 
-var computeJSONPath = function(rdPath, destDir, version) {
-  var paths = rdPath.split('/');
-  var packageName = paths[0];
-  paths[1] = 'topics';
-  paths[paths.length - 1] = paths[paths.length - 1].replace('Rd', 'json');
-  var filePath = paths.slice(1).join('/');  
-  return [destDir, packageName, version, filePath].join('/');
-};
-
-var extractPackageInfo = function(filename) {
-  var matches = filename.match(/(.*)\/(.*)_(.*)\.tar\.gz$/);
-  return {
-    name: matches[2],
-    version: matches[3]
-  };
-};
-
 var fetchJSONFile = function(s3, bucket, key, cb) {
   var params = {
     Bucket: bucket, /* required */
@@ -41,13 +23,14 @@ var fetchJSONFile = function(s3, bucket, key, cb) {
   s3.getObject(params, cb);
 };
 
-var syncDynamoDB = function(dynDB, packageInfo, value, callback) {
+var syncDynamoDB = function(dynDB, item, value, callback) {
+  var key = {
+    PackageName : {S: item.name }
+  };
+  key[item.versionKey] = {S: item.version };
   var params = {
-    TableName: 'rdoc-packages',
-    Key: {
-        PackageVersion : {S: packageInfo.version },
-        PackageName : {S: packageInfo.name }
-    },
+    TableName: item.dynDBTable,
+    Key: key,
     AttributeUpdates: {
       ParsedTimestamp: {
         Action: 'PUT',
@@ -58,14 +41,12 @@ var syncDynamoDB = function(dynDB, packageInfo, value, callback) {
   dynDB.updateItem(params, callback);
 };
 
-var descFileParserUploaderPipe = function(s3, bucketName, destDir, version) {
+var descFileParserUploaderPipe = function(s3, bucketName, packageVersion) {
   return es.through(function (fileStream) {
     var self = this;
     var completePath = fileStream.path.split('/');
-    var packageName = completePath[0];
-    completePath[completePath.length - 1] = completePath[completePath.length - 1] += '.json';
     var filePath = completePath.slice(1).join('/');
-    var path = [destDir, packageName, version, filePath].join('/');
+    var path = [packageVersion.s3ParsedPrefix, filePath].join('/');
 
     var control = controlParser(fileStream);
     var json = {};
@@ -88,15 +69,15 @@ var descFileParserUploaderPipe = function(s3, bucketName, destDir, version) {
   });
 };
 
-var parsePackageVersion = function(s3, dynamodb, bucketName, objectKey, cb) {
-  var packageInfo = extractPackageInfo(objectKey);
-  var version = packageInfo.version;
-  console.info('Version being extracted: ' + packageInfo.name + ' ' + version);
-  var dirPath = 'rpackages/unarchived';
+var parsePackageVersion = function(s3, dynamodb, bucketName, packageVersion, cb) {
+  var version = packageVersion.version;
+  var name = packageVersion.name;
+  var tarballObjectKey = packageVersion.s3ZippedKey;
+  console.info('Version being extracted: ' + packageVersion.name + ' ' + version);
 
   var req = s3.getObject({
     Bucket: bucketName, 
-    Key: objectKey
+    Key: tarballObjectKey
   });
 
   var objectStream = req.createReadStream();
@@ -121,7 +102,7 @@ var parsePackageVersion = function(s3, dynamodb, bucketName, objectKey, cb) {
 
   })
   .on('error', function(err){
-    console.log('invalid archive for ' + packageInfo.name);
+    console.log('invalid archive for ' + name);
     rdFileStream.emit('end');
   })
   .on('finish', function() {
@@ -132,12 +113,14 @@ var parsePackageVersion = function(s3, dynamodb, bucketName, objectKey, cb) {
 
   var rdFileToJsonToS3Stream = es.map(function (data, callback) {
     var p = new RDocParser();
-    var path = computeJSONPath(data.path, dirPath, version);
+    var completePath = data.path.split('/');
+    var filePath = completePath.slice(1).join('/').replace(/Rd$/, '.json').replace(/rd$/, 'json');
+    var path = [packageVersion.s3ParsedPrefix, filePath].join('/');
     try { 
       data
         .pipe(p).on('error', function(e){
           console.log('Failed during: ' + data.path + ' parsing');
-          syncDynamoDB(dynamodb, packageInfo, '-1', function(err, res) {
+          syncDynamoDB(dynamodb, packageVersion, '-1', function(err, res) {
             if (err !== null) {
               console.warn('failed to update dynamodb');
             }
@@ -158,7 +141,7 @@ var parsePackageVersion = function(s3, dynamodb, bucketName, objectKey, cb) {
     }
   });
 
-  var descResultStream = descFileStream.pipe(descFileParserUploaderPipe(s3, bucketName, dirPath, version));
+  var descResultStream = descFileStream.pipe(descFileParserUploaderPipe(s3, bucketName, packageVersion));
 
   var rdResultStream = rdFileStream.pipe(rdFileToJsonToS3Stream)
     .on('data', function(data) {
@@ -169,7 +152,7 @@ var parsePackageVersion = function(s3, dynamodb, bucketName, objectKey, cb) {
 
   es.merge(descResultStream, rdResultStream).on('error', function(err) {
     console.log('Pipe error ' + err);
-    syncDynamoDB(dynamodb, packageInfo, '-1', function(err, res) {
+    syncDynamoDB(dynamodb, packageVersion, '-1', function(err, res) {
       if (err !== null) {
         console.log('failed to update dynamodb');
       }
@@ -177,7 +160,7 @@ var parsePackageVersion = function(s3, dynamodb, bucketName, objectKey, cb) {
     });
   })
   .on('end', function() {
-    syncDynamoDB(dynamodb, packageInfo, '' + new Date().getTime(), function(err, res) {
+    syncDynamoDB(dynamodb, packageVersion, '' + new Date().getTime(), function(err, res) {
       if (err !== null) {
         console.log('failed to update dynamodb');
         cb(err);
@@ -205,13 +188,14 @@ exports.handle = function(e, ctx) {
   var bucketName = e.Records[0].s3.bucket.name;
   var objectKey = e.Records[0].s3.object.key;
 
+
   if (objectKey.endsWith('json')) {
 
     Promise.promisify(fetchJSONFile)(s3, bucketName, objectKey)
       .then(function(jsonFile) {
         var packagesToBeDone = JSON.parse(jsonFile.Body);
         return Promise.map(packagesToBeDone, function(packageVersion) {
-          return Promise.promisify(parsePackageVersion)(s3, dynamodb, packageVersion.s3bucket, packageVersion.s3key)
+          return Promise.promisify(parsePackageVersion)(s3, dynamodb, bucketName, packageVersion)
             .then(function() {
               return { status: 'succeed'};
             })

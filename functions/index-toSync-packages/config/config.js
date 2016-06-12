@@ -24,7 +24,9 @@ module.exports = {
         name: name,
         s3ZippedKey: 'rpackages/archived/'+ name + '/' + name + '_' + version + '.tar.gz',
         s3ParsedPrefix: 'rpackages/unarchived/' + name + '/' + version ,
-        version: version
+        version: version,
+        versionKey: 'PackageVersion',
+        dynDBTable: 'rdoc-packages'
       };
     }
   },
@@ -50,7 +52,10 @@ module.exports = {
       return {
         name: name,
         s3ZippedKey: 'rpackages/bioc/'+ biocRelease + '/' + name + '.tar.gz',
-        s3ParsedPrefix: 'rpackages/bioc/' + biocRelease + '/parsed/' + name
+        s3ParsedPrefix: 'rpackages/bioc/' + biocRelease + '/parsed/' + name,
+        version: biocRelease,
+        versionKey: 'BiocRelease',
+        dynDBTable: 'bioc-packages'
       };
     }
   }
