@@ -46,7 +46,7 @@ var descFileParserUploaderPipe = function(s3, bucketName, packageVersion) {
     var self = this;
     var completePath = fileStream.path.split('/');
     var filePath = completePath.slice(1).join('/');
-    var path = [packageVersion.s3ParsedPrefix, filePath].join('/');
+    var path = [packageVersion.s3ParsedPrefix, filePath].join('/') + '.json';
 
     var control = controlParser(fileStream);
     var json = {};
@@ -114,7 +114,8 @@ var parsePackageVersion = function(s3, dynamodb, bucketName, packageVersion, cb)
   var rdFileToJsonToS3Stream = es.map(function (data, callback) {
     var p = new RDocParser();
     var completePath = data.path.split('/');
-    var filePath = completePath.slice(1).join('/').replace(/Rd$/, '.json').replace(/rd$/, 'json');
+    var filePath = completePath.slice(1).join('/').replace(/Rd$/, 'json').replace(/rd$/, 'json');
+    console.log(data.path);
     var path = [packageVersion.s3ParsedPrefix, filePath].join('/');
     try { 
       data
