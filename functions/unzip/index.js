@@ -15,6 +15,14 @@ var uploadData = function(s3Client, bucketName, key, body, callback) {
   }, callback);
 };
 
+var extractPackageInfo = function(filename) {
+  var matches = filename.match(/.*\/(.*)_(.*)\.tar\.gz$/);
+  return {
+    name: matches[1],
+    version: matches[2]
+  };
+};
+
 var fetchJSONFile = function(s3, bucket, key, cb) {
   var params = {
     Bucket: bucket, /* required */
@@ -219,7 +227,18 @@ exports.handle = function(e, ctx) {
       
 
   } else if (objectKey.endsWith('.tar.gz')) {
-    parsePackageVersion(s3, dynamodb, bucketName, objectKey, function(err, res) {
+    var infos = extractPackageInfo(objectKey);
+    var name = infos.name;
+    var version = infos.version;
+    var packageVersion = {
+      name: name,
+      s3ZippedKey: 'rpackages/archived/'+ name + '/' + name + '_' + version + '.tar.gz',
+      s3ParsedPrefix: 'rpackages/unarchived/' + name + '/' + version ,
+      version: version,
+      versionKey: 'PackageVersion',
+      dynDBTable: 'rdoc-packages'
+    };
+    parsePackageVersion(s3, dynamodb, bucketName, packageVersion, function(err, res) {
       if (err !== null) ctx.fail(err);
       else ctx.succeed(); 
     });

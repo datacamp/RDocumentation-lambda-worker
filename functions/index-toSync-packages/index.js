@@ -48,7 +48,7 @@ exports.handle = function(e, ctx) {
           return configRepo.mapper(packageVersion);
         });
         newLastKey = packageList.LastEvaluatedKey;
-        if (list.length + mappedList.length < limit) {
+        if (list.length + mappedList.length < limit && newLastKey) {
           return getToSyncPackages(list.concat(mappedList), packageList.LastEvaluatedKey, limit);
         }
         else return list.concat(mappedList);
@@ -77,7 +77,7 @@ exports.handle = function(e, ctx) {
       buffer.push(packageVersion);
       if (buffer.length >= config.limitPerBuffer) {
         var json = JSON.stringify(buffer, null, 2);
-        return Promise.promisify(putObject)(s3, 'rpackages/toParse/toParse' + bufferId + '.json', json)
+        return Promise.promisify(putObject)(s3, 'rpackages/toSync/toSync' + bufferId + '.json', json)
           .then(function() {
             bufferId++;
             buffer = [];
@@ -88,7 +88,7 @@ exports.handle = function(e, ctx) {
     })
     .then(function() {
       var json = JSON.stringify(buffer, null, 2);
-        return Promise.promisify(putObject)(s3, 'rpackages/toParse/toParse' + bufferId + '.json', json)
+        return Promise.promisify(putObject)(s3, 'rpackages/toSync/toSync' + bufferId + '.json', json)
           .then(function() {
             bufferId++;
             buffer = [];
