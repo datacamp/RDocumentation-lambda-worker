@@ -54,6 +54,10 @@ var syncDynamoDB = function(dynDB, item, value, callback) {
       SyncResult: {
         Action: 'PUT',
         Value: {N: '' + value}
+      },
+      SyncedTimestamp: {
+        Action: 'PUT',
+        Value: {N: '' + new Date().getTime()}
       }
     }
   };
@@ -93,7 +97,7 @@ exports.handle = function(e, ctx) {
           var topicList = s3Result.Contents.filter(function(item) {
             var notNEWS = !item.Key.endsWith('NEWS.json');
             var notDESCRIPTION = !item.Key.endsWith('DESCRIPTION.json');
-            var inTopicFolder = /topics\/([^\/]*)\.json$/.test(item.Key);
+            var inTopicFolder = /(topics|man)\/([^\/]*)\.json$/.test(item.Key);
             return notNEWS && notDESCRIPTION && inTopicFolder;
           });
           return Promise.promisify(getJSON)(s3, bucketName, description.Key)

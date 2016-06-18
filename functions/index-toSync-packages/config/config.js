@@ -1,14 +1,13 @@
 module.exports = {
-  limit: 500,
+  limit: 10000,
   limitPerBuffer: 50,
   cran: {
     dynamoDBQueryParams: function(limit, lastKey){
       return {
         TableName: 'rdoc-packages',
-        FilterExpression: 'SyncResult <> :success AND PackageName <> :p',
+        FilterExpression: 'ParsedTimestamp > :x',
         ExpressionAttributeValues: {
-          ':success': 200,
-          ':p': 'RGtk2'
+          ':x': 1466252501000
         },
         Limit: limit,
         ProjectionExpression: 'PackageName, PackageVersion',
