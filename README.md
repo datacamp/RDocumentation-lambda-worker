@@ -12,3 +12,6 @@ Examples:
 - `apex deploy unzip`
 - `apex invoke unzip`
 - `apex metrics unzip`
+
+## License
+See the [LICENSE](LICENSE.md) file for license rights and limitations (MIT).
