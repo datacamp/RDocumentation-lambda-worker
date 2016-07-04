@@ -37,3 +37,6 @@ failed
 toSync
 
 .DS_Store
+
+ecs-worker/jsons
+ecs-worker/packages
