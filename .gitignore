@@ -40,3 +40,4 @@ toSync
 
 ecs-worker/jsons
 ecs-worker/packages
+.env
