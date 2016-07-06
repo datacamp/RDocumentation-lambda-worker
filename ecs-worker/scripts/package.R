@@ -2,20 +2,21 @@ library(staticdocs);
 library(jsonlite);
 library(stringr);
 
-packages = list.dirs("packages", recursive = FALSE, full.names = FALSE)
-wd = getwd()
+download <- function(filename, path) {
+  options(timeout = 30)
 
-print(packages)
+  skip_with_message = simpleError('not found')
+  tryCatch(download.file(path, filename), error = function(e) skip_with_message);
+
+}
+
 parse_topic_and_write <- function(rd, topic, pkg, path, package_path) {
-  
+  print(topic)
   html <- staticdocs:::to_html.Rd_doc(rd,
   env = new.env(parent = globalenv()),
   topic = topic,
   pkg = pkg)
   
-
-  html$pagetitle <- html$name
-
   html$package <- pkg[c("package", "version")]
 
   out <- toJSON(html, auto_unbox= TRUE, pretty=TRUE)
@@ -24,8 +25,8 @@ parse_topic_and_write <- function(rd, topic, pkg, path, package_path) {
   cat(out, file = path)
 }
 
-for (package_name in packages) {
-
+process_package <- function(package_name) {
+  wd = getwd()
   package_path =  paste("packages/", package_name, sep="")
 
   p <- devtools::as.package(package_path)
@@ -59,5 +60,5 @@ for (package_name in packages) {
   desc_json = toJSON(as.list(read.dcf(desc_path)[1, ]), pretty= TRUE, auto_unbox= TRUE)
 
   cat(desc_json, file = out_path)
-
 }
+
