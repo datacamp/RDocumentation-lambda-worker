@@ -1,0 +1,9 @@
+{
+  "name": "start-rdoc-worker-task",
+  "version": "0.1.0",
+  "main": "index.js",
+  "author": "DataCamp",
+  "dependencies": {
+    "aws-sdk": "^2.3.9"
+  }
+}
