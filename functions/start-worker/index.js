@@ -1,13 +1,25 @@
 var AWS = require('aws-sdk'); 
-var ecs = new AWS.ECS({apiVersion: '2014-11-13'});
+var ecs = new AWS.ECS({apiVersion: '2014-11-13', region: 'us-west-1'});
 
 
 exports.handle = function(e, ctx) {
   
- var params = {
+  var params = {
     taskDefinition: 'rdoc-ecs-worker',
     count: 1,
-    cluster: 'awseb-rdocsv2-workers-rgpnb8ixt5'
+    cluster: 'awseb-rdocsv2-workers-rgpnb8ixt5',
+    overrides: {
+      containerOverrides: [
+        {
+          command: [
+            'bash',
+            'run.sh',
+            '2016-06-01'
+          ],
+          name: 'rdoc-ecs-worker'
+        }
+      ]
+    }
   };
 
   ecs.runTask(params, function (err, data) {
