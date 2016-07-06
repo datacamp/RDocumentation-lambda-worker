@@ -5,6 +5,7 @@ library(stringr);
 packages = list.dirs("packages", recursive = FALSE, full.names = FALSE)
 wd = getwd()
 
+print(packages)
 parse_topic_and_write <- function(rd, topic, pkg, path, package_path) {
   
   html <- staticdocs:::to_html.Rd_doc(rd,

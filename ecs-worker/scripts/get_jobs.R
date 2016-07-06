@@ -1,9 +1,15 @@
 
+args <- commandArgs(trailingOnly = TRUE)
 
-last_update = as.Date("2016-07-01")
+# test if there is at least one argument: if not, return an error
+if (length(args)==0) {
+  stop("At least one argument must be supplied (last_update date)", call.=FALSE)
+}
 
+last_update <- as.Date(args[1])
+print(last_update)
 
-new.packages.rds <- function(){
+new.packages.rds <- function(last_update){
   mytemp <- tempfile();
   download.file("http://cran.r-project.org/web/packages/packages.rds", mytemp);
   mydata <- as.data.frame(readRDS(mytemp), row.names=NA);
@@ -17,7 +23,7 @@ new.packages.rds <- function(){
   mydata[new, ]
 }
 
-to_download = new.packages.rds()
+to_download = new.packages.rds(last_update)
 
 options(timeout = 30)
 f <- function(package, version) {
