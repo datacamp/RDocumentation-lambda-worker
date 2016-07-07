@@ -49,7 +49,8 @@ exports.handle = function(e, ctx) {
     console.log("Map packages to jobs");
     return newPackages.map(function(file) {
       var p = extractPackageInfo(file.name);
-      return p.path = 'ftp://cran.r-project.org/pub/R/src/contrib/' + file.name;
+      p.path = 'ftp://cran.r-project.org/pub/R/src/contrib/' + file.name;
+      return p;
     });
   }).map(function(package) {
     return Promise.promisify(sendMessage)(package);
