@@ -12,6 +12,32 @@ pruneNotRdFiles <- function(package_name) {
   }
 }
 
+handle_package_version <- function(name, version, path) {
+  print("Downloading tarball...");
+  package_file_name <- paste(name, "_" , version, ".tar.gz", sep="");
+  package_path <- paste("packages/", package_file_name, sep="");
+  download(package_path, path);
+
+  print("Untar tarball...");
+  untar(package_path, exdir = "packages/")
+
+  pruneNotRdFiles(name);
+
+  print("Parsing package...");
+  process_package(name);
+
+  print("Posting SQS jobs...");
+  postDescriptionJob(to_queue, name, version);
+
+  postTopicsJob(to_queue, name, version);
+
+  print("Syncing S3..."); 
+  syncS3(name, version);    
+
+  print("Cleaning files..."); 
+  delete_files(package_path, name);
+}
+
 main <- function() {
   to_queue <- "RdocWorkerQueue";
   queue <- create_queue(to_queue);
@@ -29,29 +55,7 @@ main <- function() {
 
         body <- fromJSON(message$Body)
 
-        print("Downloading tarball...");
-        package_file_name <- paste(body$name, "_" , body$version, ".tar.gz", sep="");
-        package_path <- paste("packages/", package_file_name, sep="");
-        download(package_path, body$path);
-
-        print("Untar tarball...");
-        untar(package_path, exdir = "packages/")
-
-        pruneNotRdFiles(body$name);
-
-        print("Parsing package...");
-        process_package(body$name);
-
-        print("Posting SQS jobs...");
-        postDescriptionJob(to_queue, body$name, body$version);
-
-        postTopicsJob(to_queue, body$name, body$version);
-
-        print("Syncing S3..."); 
-        syncS3(body$name, body$version);    
-
-        print("Cleaning files..."); 
-        delete_files(package_path, body$name);
+        handle_package_version(body$name, body$version, body$path);
 
         print("Deleting job from SQS"); 
         delete_msg(from_queue, message$ReceiptHandle);
@@ -63,5 +67,7 @@ main <- function() {
   
 }
 
-main();
+handle_package_version();
+
+#main():
 
