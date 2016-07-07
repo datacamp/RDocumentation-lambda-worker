@@ -2,14 +2,13 @@ library("jsonlite");
 source("scripts/package.R")
 source("scripts/aws.R")
 
+to_queue <- "RdocWorkerQueue";
+queue <- create_queue(to_queue);
+from_queue <- "RdocRWorkerQueue";
+queue <- create_queue(from_queue);
+
 pruneNotRdFiles <- function(package_name) {
-  package_path <- paste("packages", package_name, "man", sep="/")
-  files <- list.files(path=package_path, recursive=TRUE, full.names = TRUE, include.dirs = TRUE)
-  for (filename in rev(files)) {
-    if (!(endsWith(filename, ".Rd") || endsWith(filename, ".rd"))) {
-      file.remove(filename)
-    }
-  }
+  system(paste("./scripts/flatten_prune.sh ", package_name));
 }
 
 handle_package_version <- function(name, version, path) {
@@ -34,17 +33,10 @@ handle_package_version <- function(name, version, path) {
   print("Syncing S3..."); 
   syncS3(name, version);    
 
-  print("Cleaning files..."); 
-  delete_files(package_path, name);
 }
 
 main <- function() {
-  to_queue <- "RdocWorkerQueue";
-  queue <- create_queue(to_queue);
-  from_queue <- "RdocRWorkerQueue";
-  queue <- create_queue(from_queue);
-
-
+  
   while(1) {
     print("Polling for messages...");
     messages <- getMessages(from_queue);
@@ -55,10 +47,30 @@ main <- function() {
 
         body <- fromJSON(message$Body)
 
-        handle_package_version(body$name, body$version, body$path);
 
-        print("Deleting job from SQS"); 
-        delete_msg(from_queue, message$ReceiptHandle);
+        result <- tryCatch({
+            handle_package_version(body$name, body$version, body$path)
+          }, 
+          error = function(e) {
+            error_body <- toString(list(error=e, package=body$name, version=body$version));
+            error_queue <- "RdocRWorkerDeadQueue";
+            error_q <- create_queue(error_queue);
+            print(body$version)
+            print("Posting error to dead letter queue"); 
+            send_msg(error_queue, error_body);
+
+          }, finally = {
+            print("Cleaning files..."); 
+            package_file_name <- paste(body$name, "_" , body$version, ".tar.gz", sep="");
+            package_path <- paste("packages/", package_file_name, sep="");
+            delete_files(package_path, body$name);
+
+            print("Deleting job from SQS"); 
+            delete_msg(from_queue, message$ReceiptHandle);
+          }
+        );
+
+        if(inherits(result, "error")) next #continue
       } 
     }
     
@@ -67,7 +79,5 @@ main <- function() {
   
 }
 
-handle_package_version();
-
-#main():
+main();
 
