@@ -10,6 +10,16 @@ download <- function(filename, path) {
 
 }
 
+delete_files <- function(tarfilename, package_name) {
+  package_path <- paste("packages", package_name, sep = "/");
+  jsons_path <- paste("jsons", package_name, sep = "/");
+
+  unlink(package_path, recursive = TRUE);
+  unlink(jsons_path, recursive = TRUE);
+
+  file.remove(tarfilename);
+} 
+
 parse_topic_and_write <- function(rd, topic, pkg, path, package_path) {
   print(topic)
   html <- staticdocs:::to_html.Rd_doc(rd,
