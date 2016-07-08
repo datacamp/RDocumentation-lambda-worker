@@ -1,5 +1,0 @@
-{
-  "description": "Index all Packages to be synced",
-  "timeout": 300,
-  "memory": 128
-}
