@@ -1,5 +1,0 @@
-{
-  "description": "Trigger 'ecs:RunTask' on a cron-like manner",
-  "timeout": 300,
-  "memory": 128
-}
