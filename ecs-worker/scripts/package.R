@@ -10,6 +10,23 @@ download <- function(filename, path) {
 
 }
 
+readme <- function(sd_pkg) {
+
+  # First look in staticdocs path
+  path <- file.path(sd_pkg$sd_path, "README.md")
+  if (file.exists(path)) {
+    return(paste(readLines(path, encoding="UTF-8", warn = FALSE), collapse = "\n"));
+  }
+
+  # Then look in the package root
+  path <- file.path(sd_pkg$path, "README.md")
+  if (file.exists(path)) {
+    return(paste(readLines(path, encoding="UTF-8", warn = FALSE), collapse = "\n"));
+  }
+
+  return("");
+}
+
 delete_files <- function(tarfilename, package_name) {
   package_path <- paste("packages", package_name, sep = "/");
   jsons_path <- paste("jsons", package_name, sep = "/");
@@ -61,13 +78,15 @@ process_package <- function(package_name) {
     setwd(wd)
   }
   
-  readme <- staticdocs:::readme(pkg)
-  out_path_readme = paste("jsons", package_name, p$version,"Readme.html", sep="/")
-  cat(readme, file= out_path_readme)
+  readme <- readme(pkg)
 
   desc_path = paste(package_path, "DESCRIPTION", sep="/")
   out_path = paste("jsons", package_name, p$version,"DESCRIPTION.json", sep="/")
-  desc_json = toJSON(as.list(read.dcf(desc_path)[1, ]), pretty= TRUE, auto_unbox= TRUE)
+
+  description <- as.list(read.dcf(desc_path)[1, ])
+  description$readme <- readme;
+
+  desc_json = toJSON(description, pretty= TRUE, auto_unbox= TRUE)
 
   cat(desc_json, file = out_path)
 }
