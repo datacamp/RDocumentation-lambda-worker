@@ -1,11 +1,11 @@
 {
-  "name": "upload-json-lambda-function",
-  "version": "0.2.0",
+  "name": "update-cran-pacakges",
+  "version": "0.1.0",
   "main": "index.js",
   "author": "DataCamp",
   "dependencies": {
     "aws-sdk": "^2.3.9",
     "bluebird": "^3.4.0",
-    "request": "^2.72.0"
+    "jsftp": "^1.5.3"
   }
 }

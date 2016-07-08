@@ -1,9 +1,0 @@
-{
-  "name": "upload-task-views",
-  "version": "0.1.0",
-  "main": "index.js",
-  "author": "DataCamp",
-  "dependencies": {
-    "bluebird": "^3.4.0"
-  }
-}

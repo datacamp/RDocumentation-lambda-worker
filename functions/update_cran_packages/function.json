@@ -1,0 +1,5 @@
+{
+  "description": "Update CRAN packages",
+  "timeout": 300,
+  "memory": 128
+}
