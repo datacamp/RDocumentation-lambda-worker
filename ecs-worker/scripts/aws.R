@@ -5,8 +5,8 @@ getMessages <- function(queue) {
   receive_msg(queue, wait = 20) 
 }
 
-syncS3 <- function(package_name, version) {
-  package_path <- paste(package_name, version, sep= "/");
+syncS3 <- function(package_name) {
+  package_path <- paste(package_name, sep= "/");
   system(paste("./scripts/s3sync.sh ", package_path));
 }
 
@@ -59,9 +59,9 @@ send_msg <- function(queue, msg, query = list(), attributes = NULL, delay = NULL
   }
 }
 
-postDescriptionJob <- function(queue, package_name, version) {
+postDescriptionJob <- function(queue, package_name) {
 
-  description_json_path <- paste("jsons", package_name, version, "DESCRIPTION.json", sep = "/");
+  description_json_path <- paste("jsons", package_name, "DESCRIPTION.json", sep = "/");
   
   body <- paste(readLines(description_json_path ,encoding="UTF-8", warn = FALSE), collapse = "\n");
 
@@ -74,10 +74,10 @@ postDescriptionJob <- function(queue, package_name, version) {
   );
 }
 
-postTopicsJob <- function(queue, package_name, version) {
+postTopicsJob <- function(queue, package_name) {
 
   jsons <- c()
-  package_path <- paste("jsons", package_name, version, "man", sep="/")
+  package_path <- paste("jsons", package_name, "man", sep="/")
   files <- list.files(path=package_path, full.names = TRUE)
   for (filename in files) {
     if (endsWith(filename, ".json")) {

@@ -58,7 +58,7 @@ process_package <- function(package_name) {
 
   p <- devtools::as.package(package_path)
 
-  out_dir = paste("jsons", package_name, p$version ,"man", sep="/")
+  out_dir = paste("jsons", package_name ,"man", sep="/")
   dir.create(out_dir, recursive= TRUE)
 
   pkg <- as.sd_package(package_path, site_path=out_dir)
@@ -81,7 +81,7 @@ process_package <- function(package_name) {
   readme <- readme(pkg)
 
   desc_path = paste(package_path, "DESCRIPTION", sep="/")
-  out_path = paste("jsons", package_name, p$version,"DESCRIPTION.json", sep="/")
+  out_path = paste("jsons", package_name,"DESCRIPTION.json", sep="/")
 
   description <- as.list(read.dcf(desc_path)[1, ])
   description$readme <- readme;

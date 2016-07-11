@@ -11,14 +11,17 @@ pruneNotRdFiles <- function(package_name) {
   system(paste("./scripts/flatten_prune.sh ", package_name));
 }
 
-handle_package_version <- function(name, version, path) {
+handle_package_version <- function(name, path) {
   print("Downloading tarball...");
-  package_file_name <- paste(name, "_" , version, ".tar.gz", sep="");
+  package_file_name <- paste(name, ".tar.gz", sep="");
   package_path <- paste("packages/", package_file_name, sep="");
   download(package_path, path);
 
   print("Untar tarball...");
-  untar(package_path, exdir = "packages/")
+  untar(package_path, exdir = "packages/");
+  dir_name <- list.dirs("packages", recursive = FALSE);
+  file.rename(dir_name, paste("packages", name, sep = "/"));
+
 
   pruneNotRdFiles(name);
 
@@ -26,12 +29,12 @@ handle_package_version <- function(name, version, path) {
   process_package(name);
 
   print("Posting SQS jobs...");
-  postDescriptionJob(to_queue, name, version);
+  postDescriptionJob(to_queue, name);
 
-  postTopicsJob(to_queue, name, version);
+  postTopicsJob(to_queue, name);
 
   print("Syncing S3..."); 
-  syncS3(name, version);    
+  syncS3(name);    
 
 }
 
@@ -49,19 +52,18 @@ main <- function() {
 
 
         result <- tryCatch({
-            handle_package_version(body$name, body$version, body$path)
+            handle_package_version(body$name, body$path)
           }, 
           error = function(e) {
             error_body <- toString(list(error=e, package=body$name, version=body$version));
             error_queue <- "RdocRWorkerDeadQueue";
             error_q <- create_queue(error_queue);
-            print(body$version)
             print("Posting error to dead letter queue"); 
             send_msg(error_queue, error_body);
 
           }, finally = {
             print("Cleaning files..."); 
-            package_file_name <- paste(body$name, "_" , body$version, ".tar.gz", sep="");
+            package_file_name <- paste(body$name, ".tar.gz", sep="");
             package_path <- paste("packages/", package_file_name, sep="");
             delete_files(package_path, body$name);
 
@@ -79,6 +81,6 @@ main <- function() {
   
 }
 
-#handle_package_version("dplyr", "0.5.0", "https://cran.r-project.org/src/contrib/dplyr_0.5.0.tar.gz");
-main();
+handle_package_version("ggthemeassist", "https://api.github.com/repos/calligross/ggthemeassist/tarball");
+#main();
 
