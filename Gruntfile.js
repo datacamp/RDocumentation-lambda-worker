@@ -5,8 +5,8 @@ module.exports = function(grunt) {
       default: {
         options: {
           handler: 'handle',
-          file_name: 'functions/start-worker/index.js',
-          event: 'functions/start-worker/test_event.json'
+          file_name: 'functions/update_github_packages/index.js',
+          event: 'functions/update_github_packages/test_event.json'
         },
       },
     }
