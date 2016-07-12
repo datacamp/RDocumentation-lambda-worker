@@ -44,8 +44,8 @@ var getNewPackages = function(last_update) {
 
 
   return query(1).filter(function(repo) {
-    var created_at = new Date(repo.created_at);
-    return created_at > last_update;
+    var pushed_at = new Date(repo.pushed_at);
+    return pushed_at > last_update;
   });
 
 };
@@ -119,8 +119,6 @@ var getPackageVersionFromDescription = function (description) {
 var getReleases = function(repo) {
   var user = repo.owner.login;
   var name = repo.name;
-  console.log(user);
-  console.log(name);
   return github.repos.getReleases({ 
     user: user,
     repo: name,
@@ -139,26 +137,22 @@ var sendMessage = function(body, callback) {
   });
 };
 
-var getLastUpdate = function(callback) {
+var getState = function(callback) {
   var params = {
     Bucket: 'assets.rdocumentation.org',
     Key: 'rpackages/update_github_packages.state.json',
   };
   s3.getObject(params, function(err, data) {
-    var lastUpdate = new Date(JSON.parse(data).last_update);
-    callback(err, lastUpdate);
+    var state = JSON.parse(data.Body);
+    callback(err, state);
   });
 };
 
-var putLastUpdate = function(lastUpdate, callback) {
-  var body = {
-    last_update: lastUpdate.toISOString()
-  };
-
+var putState = function(state, callback) {
   var params = {
     Bucket: 'assets.rdocumentation.org',
     Key: 'rpackages/update_github_packages.state.json',
-    Body: JSON.stringify(body)
+    Body: JSON.stringify(state)
   };
   s3.putObject(params, callback);
 };
@@ -166,12 +160,15 @@ var putLastUpdate = function(lastUpdate, callback) {
 exports.handle = function(e, ctx) {
   var filterNull = function(x) { return x !== null };
   var now = new Date();
-  github.authenticate({
-    type: 'oauth',
-    token: process.env.GITHUB_TOKEN
-  });
+  var state;
 
-  var reposPromise = Promise.promisify(getLastUpdate)().then(function(lastUpdate) {
+  var reposPromise = Promise.promisify(getState)().then(function(_state) {
+    state = _state;
+    var lastUpdate = new Date(state.last_update);
+    github.authenticate({
+      type: 'oauth',
+      token: state.GITHUB_TOKEN
+    });
     return getNewPackages(lastUpdate);
   });
 
@@ -202,6 +199,7 @@ exports.handle = function(e, ctx) {
       return _.sortedLastIndexOf(cran_packages, repo.packageVersion.package.toLowerCase()) === -1
        && _.sortedLastIndexOf(bioc_packages, repo.packageVersion.package.toLowerCase()) === -1;
     }).map(function(repo) {
+      console.log(repo.repo.full_name);
       return getReleases(repo.repo).then(function(releases) {
         var jobs = releases.map(function(release) {
           return { 
@@ -225,7 +223,8 @@ exports.handle = function(e, ctx) {
         });
       });
     }, {concurrency: 3}).then(function(r) {
-      return Promise.promisify(putLastUpdate)(now);
+      state.last_update = now;
+      return Promise.promisify(putState)(state);
     });
 
     
