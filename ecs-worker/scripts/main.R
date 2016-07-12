@@ -11,7 +11,7 @@ pruneNotRdFiles <- function(package_name) {
   system(paste("./scripts/flatten_prune.sh ", package_name));
 }
 
-handle_package_version <- function(name, path) {
+handle_package_version <- function(name, path, repoType) {
   print("Downloading tarball...");
   package_file_name <- paste(name, ".tar.gz", sep="");
   package_path <- paste("packages/", package_file_name, sep="");
@@ -26,7 +26,7 @@ handle_package_version <- function(name, path) {
   pruneNotRdFiles(name);
 
   print("Parsing package...");
-  process_package(name);
+  process_package(name, repoType);
 
   print("Posting SQS jobs...");
   postDescriptionJob(to_queue, name);
@@ -50,9 +50,14 @@ main <- function() {
 
         body <- fromJSON(message$Body)
 
+        repoType <- body$repoType
+
+        if (is.null(repoType)) {
+          repoType <- 'cran'
+        }
 
         result <- tryCatch({
-            handle_package_version(body$name, body$path)
+            handle_package_version(body$name, body$path, repoType)
           }, 
           error = function(e) {
             error_body <- toString(list(error=e, package=body$name, version=body$version));
@@ -81,6 +86,16 @@ main <- function() {
   
 }
 
-#handle_package_version("ggthemeassist", "https://api.github.com/repos/calligross/ggthemeassist/tarball");
+
+
+#p <- fromJSON("{ \"path\": \"https://api.github.com/repos/BillPetti/baseballr/tarball\", \"name\": \"baseballr\", \"version\": \"0.1.4\", \"repoType\": \"github\"  }")
+ 
+#if (is.null(p$repoType)) {
+  #p$repoType <- 'cran'
+#}
+
+#handle_package_version(p$name, p$path, p$repoType);
+
+
 main();
 

@@ -52,7 +52,7 @@ parse_topic_and_write <- function(rd, topic, pkg, path, package_path) {
   cat(out, file = path)
 }
 
-process_package <- function(package_name) {
+process_package <- function(package_name, repoType) {
   wd = getwd()
   package_path =  paste("packages/", package_name, sep="")
 
@@ -85,6 +85,7 @@ process_package <- function(package_name) {
 
   description <- as.list(read.dcf(desc_path)[1, ])
   description$readme <- readme;
+  description$repoType <- repoType;
 
   desc_json = toJSON(description, pretty= TRUE, auto_unbox= TRUE)
 
