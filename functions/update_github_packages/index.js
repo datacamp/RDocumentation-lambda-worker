@@ -1,6 +1,7 @@
 var AWS = require('aws-sdk'); 
 var Promise = require('bluebird');
 var sqs = new AWS.SQS({region: 'us-west-1'});
+var s3 = new AWS.S3({region: 'us-east-1'});
 var GitHubApi = require('github');
 var _ = require('lodash');
 var rp = require('request-promise');
@@ -34,7 +35,6 @@ var getNewPackages = function(last_update) {
       console.log(page);
       if(github.hasNextPage(response)) {
         return query(page + 1).then(function(r) {
-          console.log(r);
           return r.concat(response.items);
         });
       } else return response.items;
@@ -74,6 +74,29 @@ var getAvailableCRANPackages = function() {
   });
 
 
+};
+
+var getAvailableBiocPackages = function () {
+  var url = 'https://www.bioconductor.org/packages/3.3/bioc/';
+
+  var transformFn = function (body) {
+    return cheerio.load(body);
+  };
+
+  var viewsOptions = {
+    transform: transformFn,
+    uri: url 
+  };
+
+  return rp(viewsOptions)
+  .then(function ($) {
+    var packages = [];
+    $('table tr td:first-child a').each(function(i, elem) {
+      var package_name = $(this).text();
+      packages.push(package_name.toLowerCase()); 
+    });
+    return packages;
+  });
 };
 
 var getPackageVersionFromDescription = function (description) {
@@ -116,18 +139,43 @@ var sendMessage = function(body, callback) {
   });
 };
 
+var getLastUpdate = function(callback) {
+  var params = {
+    Bucket: 'assets.rdocumentation.org',
+    Key: 'rpackages/update_github_packages.state.json',
+  };
+  s3.getObject(params, function(err, data) {
+    var lastUpdate = new Date(JSON.parse(data).last_update);
+    callback(err, lastUpdate);
+  });
+};
+
+var putLastUpdate = function(lastUpdate, callback) {
+  var body = {
+    last_update: lastUpdate.toISOString()
+  };
+
+  var params = {
+    Bucket: 'assets.rdocumentation.org',
+    Key: 'rpackages/update_github_packages.state.json',
+    Body: JSON.stringify(body)
+  };
+  s3.putObject(params, callback);
+};
 
 exports.handle = function(e, ctx) {
-  var lastUpdate = new Date('2010-01-01T00:00:00.000Z');
   var filterNull = function(x) { return x !== null };
-
+  var now = new Date();
   github.authenticate({
     type: 'oauth',
-    token: '88be655dceae426f60bc489d5134c92be6689e57'
+    token: process.env.GITHUB_TOKEN
   });
 
+  var reposPromise = Promise.promisify(getLastUpdate)().then(function(lastUpdate) {
+    return getNewPackages(lastUpdate);
+  });
 
-  Promise.join(getAvailableCRANPackages(), getNewPackages(lastUpdate), function(available_packages, repos) {
+  Promise.join(getAvailableCRANPackages(), getAvailableBiocPackages(), reposPromise, function(cran_packages, bioc_packages, repos) {
 
     return Promise.map(repos, function(repo) {
       return getDescription(repo.full_name).then(function(description) {
@@ -151,31 +199,37 @@ exports.handle = function(e, ctx) {
       }
     }).filter(filterNull).filter(function(repo) {
       //we only want the packages that are not already on CRAN
-      return _.sortedLastIndexOf(available_packages, repo.packageVersion.package.toLowerCase()) === -1;
+      return _.sortedLastIndexOf(cran_packages, repo.packageVersion.package.toLowerCase()) === -1
+       && _.sortedLastIndexOf(bioc_packages, repo.packageVersion.package.toLowerCase()) === -1;
     }).map(function(repo) {
       return getReleases(repo.repo).then(function(releases) {
         var jobs = releases.map(function(release) {
           return { 
             path: release.tarball_url,
             name: repo.packageVersion.package,
-            version: release.tag_name
+            version: release.tag_name,
+            repoType: 'github'
           };
         });
         if (jobs.length === 0) {
           jobs.push({
-            path: "https://api.github.com/repos/" + repo.repo.full_name + "/tarball",
+            path: 'https://api.github.com/repos/' + repo.repo.full_name + '/tarball',
             name: repo.packageVersion.package,
-            version: repo.packageVersion.version
+            version: repo.packageVersion.version,
+            repoType: 'github'
           });
         }
-        return jobs;
+        //return jobs;
+        return Promise.map(jobs, function(job) {
+          return Promise.promisify(sendMessage)(job);
+        });
       });
-    }, {concurrency: 3});
+    }, {concurrency: 3}).then(function(r) {
+      return Promise.promisify(putLastUpdate)(now);
+    });
 
     
-  }).then(function(jobs){
-    console.log(jobs);
-    console.log(jobs.length);
+  }).then(function(result){
     return ctx.succeed();
   }).catch(function(err){
     console.log(err);
