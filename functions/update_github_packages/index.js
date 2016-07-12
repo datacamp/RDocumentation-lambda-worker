@@ -28,7 +28,7 @@ var getNewPackages = function(last_update) {
   
   var query = function(page) {
     return github.search.repos({
-      q: 'language:r+stars:>2',
+      q: 'language:r+stars:>1',
       per_page: 100,
       page: page || 1
     }).then(function(response) {
