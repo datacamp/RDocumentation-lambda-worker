@@ -81,6 +81,6 @@ main <- function() {
   
 }
 
-handle_package_version("ggthemeassist", "https://api.github.com/repos/calligross/ggthemeassist/tarball");
-#main();
+#handle_package_version("ggthemeassist", "https://api.github.com/repos/calligross/ggthemeassist/tarball");
+main();
 
