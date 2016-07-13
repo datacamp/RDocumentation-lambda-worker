@@ -36,7 +36,7 @@ handle_package_version <- function(name, path, repoType) {
   postTopicsJob(to_queue, name);
 
   print("Syncing S3..."); 
-  syncS3(name);    
+  #syncS3(name);    
 
 }
 
