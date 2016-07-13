@@ -76,6 +76,8 @@ main <- function() {
 
             print("Deleting job from SQS"); 
             delete_msg(from_queue, message$ReceiptHandle);
+            print("Garbage collenction");
+            gc();
           }
         );
 
