@@ -28,14 +28,7 @@ readme <- function(sd_pkg) {
 }
 
 delete_files <- function(tarfilename, package_name) {
-  package_path <- paste("packages", package_name, sep = "/");
-  jsons_path <- paste("jsons", package_name, sep = "/");
-
-  file.remove(tarfilename);
-  unlink(package_path, recursive = TRUE);
-  unlink(jsons_path, recursive = TRUE);
-
-  
+  system(paste("./scripts/clean.sh "));
 } 
 
 parse_topic_and_write <- function(rd, topic, pkg, path, package_path) {

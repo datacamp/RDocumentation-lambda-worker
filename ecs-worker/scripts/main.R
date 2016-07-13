@@ -13,7 +13,7 @@ pruneNotRdFiles <- function(package_name) {
 
 handle_package_version <- function(name, path, repoType) {
 
-  delete_files("packages/", "");
+  delete_files();
   print("Downloading tarball...");
   package_file_name <- paste(name, ".tar.gz", sep="");
   package_path <- paste("packages/", package_file_name, sep="");
@@ -35,8 +35,8 @@ handle_package_version <- function(name, path, repoType) {
 
   postTopicsJob(to_queue, name);
 
-  print("Syncing S3..."); 
-  #syncS3(name);    
+  print("Syncing S3 and clean..."); 
+  syncS3(name);    
 
 }
 
@@ -70,9 +70,7 @@ main <- function() {
 
           }, finally = {
             print("Cleaning files..."); 
-            package_file_name <- paste(body$name, ".tar.gz", sep="");
-            package_path <- paste("packages/", package_file_name, sep="");
-            delete_files(package_path, body$name);
+            delete_files();
 
             print("Deleting job from SQS"); 
             delete_msg(from_queue, message$ReceiptHandle);
