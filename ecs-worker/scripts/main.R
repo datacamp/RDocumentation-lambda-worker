@@ -12,6 +12,8 @@ pruneNotRdFiles <- function(package_name) {
 }
 
 handle_package_version <- function(name, path, repoType) {
+
+  delete_files("packages/", "");
   print("Downloading tarball...");
   package_file_name <- paste(name, ".tar.gz", sep="");
   package_path <- paste("packages/", package_file_name, sep="");
