@@ -1,0 +1,14 @@
+{
+  "name": "update-cran-pacakges",
+  "version": "0.1.0",
+  "main": "index.js",
+  "author": "DataCamp",
+  "dependencies": {
+    "aws-sdk": "^2.3.9",
+    "bluebird": "^3.4.0",
+    "jsftp": "^1.5.3",
+    "mkdirp": "^0.5.1",
+    "s3": "^4.4.0",
+    "tar.gz": "^1.0.5"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "description": "Update packages that are part of R",
+  "timeout": 300,
+  "memory": 512
+}
