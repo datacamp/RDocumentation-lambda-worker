@@ -1,0 +1,14 @@
+{
+  "name": "update-bioc-pacakges",
+  "version": "0.1.0",
+  "main": "index.js",
+  "author": "DataCamp",
+  "dependencies": {
+    "aws-sdk": "^2.3.9",
+    "bluebird": "^3.4.0",
+    "cheerio": "^0.20.0",
+    "github": "^2.1.0",
+    "lodash": "^4.13.1",
+    "request-promise": "^3.0.0"
+  }
+}
