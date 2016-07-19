@@ -74,7 +74,7 @@ main <- function() {
 
             print("Deleting job from SQS"); 
             delete_msg(from_queue, message$ReceiptHandle);
-            print("Garbage collenction");
+            print("Garbage collection");
             gc();
           }
         );
@@ -90,12 +90,8 @@ main <- function() {
 
 
 
-#p <- fromJSON("{ \"path\": \"https://api.github.com/repos/BillPetti/baseballr/tarball\", \"name\": \"baseballr\", \"version\": \"0.1.4\", \"repoType\": \"github\"  }")
+#p <- fromJSON("{ \"path\": \"https://s3.amazonaws.com/assets.rdocumentation.org/rpackages/archived/base/base_3.3.1.tar.gz\", \"name\": \"base\", \"version\": \"3.3.1\", \"repoType\": \"part_of_r\"  }")
  
-#if (is.null(p$repoType)) {
-  #p$repoType <- 'cran'
-#}
-
 #handle_package_version(p$name, p$path, p$repoType);
 
 
