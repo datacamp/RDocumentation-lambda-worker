@@ -149,7 +149,8 @@ exports.handle = function(e, ctx) {
             });
           });
         });
-      }, {concurrency: 2}).then(function() {
+      }, {concurrency: 2}).then(function(packages) {
+        if(packages.length === 0) return [];
         console.log('Sync S3');
         return Promise.promisify(syncFolder)('./compiled/');
       }).map(function(job) {
