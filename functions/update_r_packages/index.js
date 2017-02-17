@@ -9,6 +9,7 @@ var path = require('path');
 var mkdirp = require('mkdirp');
 var config = new AWS.Config();
 var _s3 = require('s3');
+var exec = require('child_process').exec;
 
 var s3Client = _s3.createClient({
   s3Options: {
@@ -116,16 +117,21 @@ exports.handle = function(e, ctx) {
       return Promise.map(newPackages, function(package) {
         return new Promise(function (resolve, reject) {
           console.log('Downloading '+ package.name);
-          ftp.get(dir + '/' + package.name, './' + package.name, function(err) {
+          ftp.get(dir + '/' + package.name, '/tmp/' + package.name, function(err) {
             if(err) reject(err);
-            else resolve('./' + package.name);
+            else resolve('/tmp/' + package.name);
           });
         });
       }, {concurrency: 1})
       .map(function(tarballPath) {
         console.log('Exctracting ' + tarballPath);
-        return targz().extract(tarballPath, '.').then(function(){
-          return tarballPath.substring(0, tarballPath.indexOf('.tar.gz'));
+        return new Promise(function(resolve, reject) {
+          exec('tar -xzf ' + tarballPath + ' -C /tmp', function(error, stdout, stderr) {
+            if(error) return reject(stderr);
+            console.log(stdout);
+            console.log(stderr);
+            resolve(tarballPath.substring(0, tarballPath.indexOf('.tar.gz')))
+          });
         });
       }, {concurrency: 2}).map(function(dirPath) {
         var srcPath = dirPath + '/src/library';
@@ -140,19 +146,19 @@ exports.handle = function(e, ctx) {
           console.log('Compiling DESCRIPTION ' + descriptionPath);
           return Promise.promisify(fs.readFile)(descriptionPath, {encoding: 'utf-8'}).then(function(data) {
             var compiledDescriptionPath = path.join(packagePath, 'DESCRIPTION');
-            var RVersion = dirPath.match(/\.\/R-(([0-9]*\.?)+)/)[1];
+            var RVersion = dirPath.match(/\/R-(([0-9]*\.?)+)/)[1];
             var compiledDescription = data.replace(/@VERSION@/g, RVersion);
             return Promise.promisify(fs.writeFile)(compiledDescriptionPath, compiledDescription).then(function() {
-              return Promise.promisify(mkdirp)(path.join('./compiled/', package));
+              return Promise.promisify(mkdirp)(path.join('/tmp/compiled/', package));
             }).then(function() {
-              return targz().compress(packagePath, path.join('./compiled/', package, package + '_' + RVersion + '.tar.gz'));
+              return targz().compress(packagePath, path.join('/tmp/compiled/', package, package + '_' + RVersion + '.tar.gz'));
             });
           });
         });
       }, {concurrency: 2}).then(function(packages) {
         if(packages.length === 0) return [];
         console.log('Sync S3');
-        return Promise.promisify(syncFolder)('./compiled/');
+        return Promise.promisify(syncFolder)('/tmp/compiled/');
       }).map(function(job) {
         return Promise.promisify(sendMessage)(job);
       }).then(function() {
