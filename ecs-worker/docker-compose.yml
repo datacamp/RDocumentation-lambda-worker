@@ -1,7 +1,6 @@
-worker:  
+worker:
   build: .
   volumes:
-    - ./scripts:/ecs-worker/scripts
     - ./packages:/ecs-worker/packages
     - ./jsons:/ecs-worker/jsons
   env_file: .env
