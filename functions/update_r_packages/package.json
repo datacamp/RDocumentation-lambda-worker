@@ -1,5 +1,5 @@
 {
-  "name": "update-cran-pacakges",
+  "name": "update-r-packages",
   "version": "0.1.0",
   "main": "index.js",
   "author": "DataCamp",
