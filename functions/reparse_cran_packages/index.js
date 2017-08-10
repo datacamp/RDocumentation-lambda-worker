@@ -37,14 +37,14 @@ var getDateString = function(date) {
     replace(/\..+/, '');
 }
 
-var getOutdatedPackages = function(lastParserUpdate) {
+var getOutdatedPackages = function(parserVersion) {
   var url = 'https://rdocumentation.org/api/packages';
   var limit = 100;
-    
+  
   var options = {
     uri: url,
     qs: {
-      "updated_at": { "$lt": getDateString(lastParserUpdate) },
+      "parser_version": { "$lt": parserVersion},
       "type_id": 1,
       "sort": "popularity",
       limit
@@ -64,9 +64,9 @@ exports.handle = function(e, ctx) {
   var dir ='/pub/R/src/contrib/';
 
   Promise.promisify(getState)().then(function(state) {
-    var lastUpdate = new Date(state.last_update);    
+    var currentParserVersion = new Date(state.parser_version);    
 
-    return getOutdatedPackages(lastUpdate).then(function(packages){
+    return getOutdatedPackages(currentParserVersion).then(function(packages){
       return packages;
     }).map(function(package) {
       var p = {
