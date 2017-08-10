@@ -1,5 +1,4 @@
-var AWS = require('aws-sdk'); 
-var JSFtp = require('jsftp');
+var AWS = require('aws-sdk');
 var Promise = require('bluebird');
 var sqs = new AWS.SQS({region: 'us-west-1'});
 var s3 = new AWS.S3({region: 'us-east-1'});
@@ -57,14 +56,8 @@ var getOutdatedPackages = function(parserVersion) {
 };
 
 exports.handle = function(e, ctx) {
-  var ftp = new JSFtp({
-    host: 'cran.r-project.org'
-  });
-
-  var dir ='/pub/R/src/contrib/';
-
   Promise.promisify(getState)().then(function(state) {
-    var currentParserVersion = new Date(state.parser_version);    
+    var currentParserVersion = state.parser_version;    
 
     return getOutdatedPackages(currentParserVersion).then(function(packages){
       return packages;
