@@ -30,12 +30,6 @@ var getState = function(callback) {
   });
 };
 
-var getDateString = function(date) {
-  return date.toISOString().
-    replace(/T/, ' ').      // replace T with a space
-    replace(/\..+/, '');
-}
-
 var getOutdatedPackages = function(parserVersion) {
   var url = 'https://rdocumentation.org/api/packages';
   var limit = 100;
