@@ -1,0 +1,5 @@
+{
+  "description": "Reparse r packages",
+  "timeout": 300,
+  "memory": 512
+}
