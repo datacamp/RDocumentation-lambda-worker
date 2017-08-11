@@ -4,11 +4,7 @@
   "main": "index.js",
   "author": "DataCamp",
   "dependencies": {
-    "aws-sdk": "^2.3.9",
     "bluebird": "^3.4.0",
-    "github": "^9.2.0",
-    "lodash": "^4.17.4",
-    "request": "^2.81.0",
-    "request-promise": "^4.2.1"
+    "lambda-common": "file:../common"
   }
 }
