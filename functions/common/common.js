@@ -31,17 +31,16 @@ exports.getState = function(key, callback) {
 };
 
 exports.getOutdatedPackages = function(type_id, parserVersion) {
-  //var url = 'https://rdocumentation.org/api/packages';
+  //var url = 'https://rdocumentation.org/parser/list';
   //var limit = 100;
   var limit = 5;
-  var url = 'http://localhost:1337/api/packages';
+  var url = 'http://localhost:1337/parser/list';
   
   var options = {
     uri: url,
     qs: {
-      "parser_version": { "$lt": parserVersion},
+      "parser_version": parserVersion,
       "type_id": type_id,
-      "sort": "popularity",
       limit
     },
     json: true,
