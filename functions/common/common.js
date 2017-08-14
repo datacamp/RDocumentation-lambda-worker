@@ -30,7 +30,7 @@ exports.getState = function(key, callback) {
 };
 
 exports.getOutdatedPackages = function(type_id, parserVersion) {
-  var url = 'https://rdocumentation.org/parser/list';
+  var url = 'https://rdocumentation.org/api/parsing/jobs';
   var limit = 100;
   
   var options = {
