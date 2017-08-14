@@ -9,14 +9,13 @@ var _ = require('lodash');
 exports.sendMessage = function(body, callback) {
   console.log("Sending job");
   //console.log(body);
-  /*var params = {
+  var params = {
     MessageBody: JSON.stringify(body),
     QueueUrl: 'https://sqs.us-west-1.amazonaws.com/352211034136/RdocRWorkerQueue'
   };
   sqs.sendMessage(params, function(err, data) {
     callback(err, data);
-  });*/
-  callback(null, "ok");
+  });
 };
 
 exports.getState = function(key, callback) {
@@ -31,10 +30,8 @@ exports.getState = function(key, callback) {
 };
 
 exports.getOutdatedPackages = function(type_id, parserVersion) {
-  //var url = 'https://rdocumentation.org/parser/list';
-  //var limit = 100;
-  var limit = 5;
-  var url = 'http://localhost:1337/parser/list';
+  var url = 'https://rdocumentation.org/parser/list';
+  var limit = 100;
   
   var options = {
     uri: url,
