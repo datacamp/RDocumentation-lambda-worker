@@ -77,7 +77,7 @@ var getAvailableCRANPackages = function() {
 };
 
 var getAvailableBiocPackages = function () {
-  var url = 'https://www.bioconductor.org/packages/3.3/bioc/';
+  var url = 'https://www.bioconductor.org/packages/3.5/bioc/';
 
   var transformFn = function (body) {
     return cheerio.load(body);
