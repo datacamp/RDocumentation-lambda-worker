@@ -1,0 +1,5 @@
+{
+  "description": "Reparse bioc packages",
+  "timeout": 300,
+  "memory": 512
+}

@@ -1,0 +1,5 @@
+{
+  "description": "Reparse CRAN packages",
+  "timeout": 300,
+  "memory": 512
+}
