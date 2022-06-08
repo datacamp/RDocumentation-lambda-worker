@@ -4,6 +4,7 @@ var Promise = require('bluebird');
 var sqs = new AWS.SQS({region: 'us-west-1'});
 var s3 = new AWS.S3({region: 'us-east-1'});
 
+var SQS_QUEUE_URL = process.env.SQS_QUEUE_URL;
 
 var getNewPackages = function(ftp, dir, callback) {
   console.info('Fetching package list');
@@ -24,7 +25,7 @@ var sendMessage = function(body, callback) {
   console.log("Sending job");
   var params = {
     MessageBody: JSON.stringify(body),
-    QueueUrl: 'https://sqs.us-west-1.amazonaws.com/352211034136/RdocRWorkerQueue'
+    QueueUrl: SQS_QUEUE_URL
   };
   sqs.sendMessage(params, function(err, data) {
     callback(err, data);

@@ -11,6 +11,8 @@ var config = new AWS.Config();
 var _s3 = require('s3');
 var exec = require('child_process').exec;
 
+var SQS_QUEUE_URL = process.env.SQS_QUEUE_URL;
+
 var s3Client = _s3.createClient({
   s3Options: {
     region: 'us-east-1'
@@ -71,7 +73,7 @@ var sendMessage = function(body, callback) {
   console.log("Sending job");
   var params = {
     MessageBody: JSON.stringify(body),
-    QueueUrl: 'https://sqs.us-west-1.amazonaws.com/352211034136/RdocRWorkerQueue'
+    QueueUrl: SQS_QUEUE_URL
   };
   sqs.sendMessage(params, function(err, data) {
     callback(err, data);

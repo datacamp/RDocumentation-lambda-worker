@@ -5,6 +5,7 @@ var s3 = new AWS.S3({region: 'us-east-1'});
 var GitHubApi = require('github');
 var _ = require('lodash');
 
+var SQS_QUEUE_URL = process.env.SQS_QUEUE_URL;
 
 var github = new GitHubApi({
     //debug: true,
@@ -59,7 +60,7 @@ var sendMessage = function(body, callback) {
   console.log('Sending job');
   var params = {
     MessageBody: JSON.stringify(body),
-    QueueUrl: 'https://sqs.us-west-1.amazonaws.com/352211034136/RdocRWorkerQueue'
+    QueueUrl: SQS_QUEUE_URL
   };
   sqs.sendMessage(params, function(err, data) {
     callback(err, data);
